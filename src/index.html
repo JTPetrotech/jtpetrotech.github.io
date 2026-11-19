@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#05080d">
+<meta name="description" content="Two browser games, nothing to install.">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>The Arcade</title>
+<!--FONTS-->
+<style>
+:root{
+  --bg:#05080d; --panel:#0e1621; --panel2:#16202e; --line:#243246;
+  --text:#e9f0f8; --muted:#8ea3b9; --amber:#ffc43d; --green:#3ec98a;
+  --ice:#2f7fe0; --felt:#2e8b57;
+  --display:"Bebas Neue","Haettenschweiler","Arial Narrow",sans-serif;
+  --body:"Barlow","Helvetica Neue",Arial,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{
+  background:
+    radial-gradient(120% 80% at 50% -10%, rgba(47,127,224,.16), transparent 60%),
+    radial-gradient(90% 60% at 50% 110%, rgba(255,196,61,.08), transparent 60%),
+    var(--bg);
+  color:var(--text);font-family:var(--body);
+  -webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent;
+  display:flex;flex-direction:column;align-items:center;
+  padding:min(7vh,56px) 16px 48px;
+}
+header{text-align:center;max-width:620px;margin-bottom:clamp(24px,5vh,42px)}
+h1{font-family:var(--display);font-size:clamp(52px,14vw,96px);line-height:.85;margin:0;letter-spacing:.02em}
+h1 em{font-style:normal;color:var(--amber)}
+.tag{color:var(--muted);font-size:15px;line-height:1.55;margin:14px auto 0;max-width:46ch}
+
+main{width:100%;max-width:860px;display:grid;gap:14px;grid-template-columns:1fr}
+@media (min-width:720px){ main{grid-template-columns:1fr 1fr} }
+
+a.game{
+  display:flex;flex-direction:column;gap:0;text-decoration:none;color:inherit;
+  background:linear-gradient(180deg,var(--panel2),var(--panel));
+  border:1px solid var(--line);border-top:3px solid var(--accent,#2f7fe0);
+  border-radius:16px;overflow:hidden;
+  transition:transform .14s ease,border-color .14s ease,box-shadow .14s ease;
+}
+a.game:hover,a.game:focus-visible{
+  transform:translateY(-3px);border-color:var(--accent,#2f7fe0);
+  box-shadow:0 14px 36px rgba(0,0,0,.5);outline:none;
+}
+a.game:active{transform:translateY(0)}
+.art{height:148px;display:grid;place-items:center;background:var(--art,#0b1119);position:relative;overflow:hidden}
+.art svg{width:118px;height:118px;display:block}
+.body{padding:16px 17px 18px}
+.name{font-family:var(--display);font-size:34px;line-height:.98;letter-spacing:.02em}
+.kind{font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--accent,#2f7fe0);font-weight:800;margin-top:5px}
+.desc{font-size:13.5px;color:var(--muted);line-height:1.5;margin:9px 0 0}
+.meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:13px}
+.pill{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;font-weight:800;color:var(--muted);
+  background:#0b1420;border:1px solid #1d2a3b;border-radius:999px;padding:5px 10px}
+.play{margin-top:15px;display:inline-flex;align-items:center;gap:8px;
+  font-family:var(--display);font-size:22px;letter-spacing:.06em;color:var(--amber)}
+.play svg{width:15px;height:15px}
+
+footer{margin-top:clamp(26px,6vh,46px);max-width:620px;text-align:center;color:var(--muted);font-size:12.5px;line-height:1.6}
+footer b{color:var(--text);font-weight:700}
+footer .sep{margin:16px auto 0;height:1px;max-width:220px;background:var(--line)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>The <em>Arcade</em></h1>
+  <p class="tag">Two games that run in a browser. Nothing to install, no accounts to make, and once a page has loaded it keeps working with no signal.</p>
+</header>
+
+<main>
+
+  <a class="game" href="https://jtpetrotech.github.io/top-shelf/" style="--accent:#2f7fe0;--art:#0c1724">
+    <div class="art" aria-hidden="true">
+      <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+        <ellipse cx="60" cy="92" rx="44" ry="9" fill="#13263b"/>
+        <path d="M30 20 L74 74" stroke="#d9b887" stroke-width="7" stroke-linecap="round"/>
+        <path d="M30 20 L40 32" stroke="#2b3647" stroke-width="9" stroke-linecap="round"/>
+        <path d="M72 72 q10 12 24 10 q-4 10 -16 10 q-12 0 -18 -12 z" fill="#15191f"/>
+        <ellipse cx="38" cy="88" rx="13" ry="5" fill="#15191f"/>
+        <ellipse cx="38" cy="86" rx="13" ry="5" fill="#2a313b"/>
+      </svg>
+    </div>
+    <div class="body">
+      <div class="name">Top Shelf</div>
+      <div class="kind">3D Hockey</div>
+      <p class="desc">Five a side on ice, four on roller. Career mode with cards, packs, custom sticks and a season. Play the CPU, a friend on the same screen, or manage from the bench.</p>
+      <div class="meta">
+        <span class="pill">1&ndash;2 players</span>
+        <span class="pill">Offline</span>
+        <span class="pill">Gamepad</span>
+      </div>
+      <span class="play">Play <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5l11 7-11 7z"/></svg></span>
+    </div>
+  </a>
+
+  <a class="game" href="https://jtpetrotech.github.io/poker-pages/" style="--accent:#3ec98a;--art:#0b1a14">
+    <div class="art" aria-hidden="true">
+      <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+        <ellipse cx="60" cy="94" rx="44" ry="9" fill="#10291f"/>
+        <g transform="rotate(-14 46 58)">
+          <rect x="24" y="26" width="44" height="62" rx="6" fill="#e9eef5" stroke="#b9c6d4" stroke-width="2"/>
+          <path d="M46 40 q10 11 10 17 a10 10 0 0 1 -20 0 q0 -6 10 -17 z" fill="#15191f"/>
+          <rect x="43" y="60" width="6" height="12" rx="2" fill="#15191f"/>
+        </g>
+        <g transform="rotate(10 78 60)">
+          <rect x="58" y="30" width="44" height="62" rx="6" fill="#e9eef5" stroke="#b9c6d4" stroke-width="2"/>
+          <path d="M80 48 q9 9 9 15 a9 9 0 0 1 -18 0 q0 -6 9 -15 z" fill="#c0392b"/>
+          <rect x="77" y="63" width="6" height="11" rx="2" fill="#c0392b"/>
+        </g>
+      </svg>
+    </div>
+    <div class="body">
+      <div class="name">Side Pot</div>
+      <div class="kind">Texas Hold&rsquo;em</div>
+      <p class="desc">Play-money No-Limit Hold&rsquo;em with your friends. One person hosts the table in their own browser and everyone else connects straight to it &mdash; the cards go peer to peer, with no server in the middle.</p>
+      <div class="meta">
+        <span class="pill">Multiplayer</span>
+        <span class="pill">Play money</span>
+        <span class="pill">No install</span>
+      </div>
+      <span class="play">Play <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5l11 7-11 7z"/></svg></span>
+    </div>
+  </a>
+
+</main>
+
+<footer>
+  <p><b>On a phone?</b> Open a game, then add it to your home screen &mdash; iPhone: Share, then Add to Home Screen. Android: the browser menu, then Add to Home screen. It opens full screen after that, like an app.</p>
+  <div class="sep"></div>
+  <p style="margin-top:16px">Both games are free, have no ads and take no payment of any kind. Nothing you do in them leaves your device except Side Pot&rsquo;s connection to the people you are playing with.</p>
+</footer>
+
+</body>
+</html>
