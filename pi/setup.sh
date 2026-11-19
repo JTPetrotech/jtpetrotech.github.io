@@ -158,12 +158,14 @@ exec "$BROWSER" \\
   --disable-features=TranslateUI \\
   --check-for-update-interval=31536000 \\
   --autoplay-policy=no-user-gesture-required \\
-  --use-gl=egl \\
-  --enable-gpu-rasterization \\
   --disable-pinch \\
   --overscroll-history-navigation=0 \\
   --user-data-dir="\$HOME/.arcade-chrome"
 EOF
+# There is deliberately no --use-gl flag. Chromium picks the right backend on
+# Bookworm; forcing a wrong one silently falls back to software rendering,
+# which would make a WebGL game unplayable and look like a hardware fault.
+# Check chrome://gpu reads "WebGL: Hardware accelerated" before blaming the Pi.
 chmod +x "$ARCADE/kiosk.sh"
 
 mkdir -p "$HOME/.config/autostart"
