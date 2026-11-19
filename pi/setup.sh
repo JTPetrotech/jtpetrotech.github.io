@@ -64,6 +64,16 @@ for candidate in "$(dirname "$0")/../index.html" "$ARCADE/hub/index.html"; do
   [ -f "$candidate" ] && { HUB_SRC="$candidate"; break; }
 done
 
+# Piped through curl there is no local copy to find, so fetch the published one.
+if [ -z "$HUB_SRC" ]; then
+  if curl -fsSL -o "$ARCADE/.hub-src.html" \
+       "https://jtpetrotech.github.io/" 2>/dev/null \
+     && grep -q 'class="game"' "$ARCADE/.hub-src.html"; then
+    HUB_SRC="$ARCADE/.hub-src.html"
+    echo "    pulled the published hub"
+  fi
+fi
+
 if [ -n "$HUB_SRC" ]; then
   python3 - "$HUB_SRC" "$ARCADE/index.html" <<'PY'
 import sys, pathlib
