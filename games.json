@@ -1,0 +1,43 @@
+{
+  "_comment": [
+    "The games on the Arcade. build.js turns each entry into a card, so adding",
+    "a game is a change to this file and nothing else - no HTML to edit.",
+    "",
+    "  name     what it is called",
+    "  kind     the small line under the name",
+    "  url      where it lives. Somebody else's game points at their own site.",
+    "  desc     a sentence or three. Plain text; the build escapes it.",
+    "  pills    up to three short tags",
+    "  accent   the top border and the Play colour",
+    "  art      optional: src/art/<art>.svg. Left out, the build draws a",
+    "           lettermark from the name, which is a perfectly good card.",
+    "  tile     optional background behind the art",
+    "",
+    "The build refuses anything it cannot vouch for: a url that is not http or",
+    "https, a colour that is not a plain hex value. All text is escaped on the",
+    "way in. That matters because some of this arrives from other people."
+  ],
+
+  "games": [
+    {
+      "name": "Top Shelf",
+      "kind": "3D Hockey",
+      "url": "https://jtpetrotech.github.io/top-shelf/",
+      "desc": "Five a side on ice, four on roller. Career mode with cards, packs, custom sticks and a season. Play the CPU, a friend on the same screen, or manage from the bench.",
+      "pills": ["1–2 players", "Offline", "Gamepad"],
+      "accent": "#2f7fe0",
+      "tile": "#0c1724",
+      "art": "top-shelf"
+    },
+    {
+      "name": "Side Pot",
+      "kind": "Texas Hold’em",
+      "url": "https://jtpetrotech.github.io/poker-pages/",
+      "desc": "Play-money No-Limit Hold’em with your friends. One person hosts the table in their own browser and everyone else connects straight to it — the cards go peer to peer, with no server in the middle.",
+      "pills": ["Multiplayer", "Play money", "No install"],
+      "accent": "#3ec98a",
+      "tile": "#0b1a14",
+      "art": "side-pot"
+    }
+  ]
+}

@@ -1,0 +1,81 @@
+name: Add my game to the Arcade
+description: You've got a browser game online and you'd like a card for it.
+title: "Add: "
+labels: ["new game"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Fill this in and submit — that's the whole thing. You'll get an email
+        when it goes up.
+
+        Haven't put your game online yet? Start at
+        [the guide](https://jtpetrotech.github.io/add-a-game/), then come back.
+
+  - type: input
+    id: name
+    attributes:
+      label: What's it called?
+      placeholder: Ninja Golf
+    validations:
+      required: true
+
+  - type: input
+    id: url
+    attributes:
+      label: Link to it
+      description: Paste the address and check it opens in a new tab first.
+      placeholder: https://your-username.github.io/your-game/
+    validations:
+      required: true
+
+  - type: input
+    id: kind
+    attributes:
+      label: What kind of game is it?
+      description: Three or four words. This goes in small letters under the name.
+      placeholder: 2D Platformer
+    validations:
+      required: true
+
+  - type: textarea
+    id: desc
+    attributes:
+      label: Describe it
+      description: >
+        A sentence or three, like you're telling someone whether they'd enjoy
+        it. What you do, what's good about it.
+      placeholder: >
+        Eighteen holes of golf, except you're a ninja and the course is a
+        rooftop. Two players on one keyboard.
+    validations:
+      required: true
+
+  - type: input
+    id: pills
+    attributes:
+      label: Up to three tags
+      description: Separate them with commas. Skip it if nothing fits.
+      placeholder: 2 players, Offline, Mobile
+
+  - type: input
+    id: accent
+    attributes:
+      label: A colour for the card
+      description: >
+        Optional. A hex code like #e2684f, or just name a colour and I'll pick
+        something close.
+      placeholder: "#e2684f"
+
+  - type: checkboxes
+    id: yours
+    attributes:
+      label: Before you send it
+      options:
+        - label: >
+            This is my own game, and there's nothing in it I wouldn't want a
+            kid to run into.
+          required: true
+        - label: >
+            I've opened the link myself just now and it actually loads.
+          required: true

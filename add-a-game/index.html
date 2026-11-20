@@ -81,6 +81,17 @@ code{font-family:var(--mono);font-size:13px;color:var(--amber);
   background:#0a1a13;border:1px solid #1c3a2a;border-radius:8px;
   padding:11px 13px;margin:12px 0 0;word-break:break-all}
 
+.btnrow{margin:16px 0 0}
+a.btn{
+  display:inline-block;text-decoration:none;
+  font-family:var(--display);font-size:23px;letter-spacing:.04em;
+  color:#1a1205;background:var(--amber);
+  border-radius:10px;padding:11px 22px 9px;
+  transition:transform .12s ease,filter .12s ease;
+}
+a.btn:hover,a.btn:focus-visible{filter:brightness(1.08);transform:translateY(-1px);outline:none}
+a.btn:active{transform:translateY(0)}
+
 .gotchas{margin:40px 0 0;background:var(--panel);border:1px solid var(--line);
   border-radius:14px;padding:20px 22px}
 .gotchas ul{margin:12px 0 0;padding-left:20px;color:var(--muted);font-size:14.5px}
@@ -156,8 +167,15 @@ first time, under a minute every time after.</p>
     <h2>Send the address over</h2>
     <p>It'll look like this, with your username and your repository name:</p>
     <div class="url">https://<b>your-username</b>.github.io/<b>your-game</b>/</div>
-    <p>Open it to check it actually works, then send it to me and I'll add a card
-    for it on the Arcade.</p>
+    <p>Open it and check it actually works. Then click this, fill in four boxes
+    and submit &mdash; that's you done:</p>
+
+    <p class="btnrow"><a class="btn"
+      href="https://github.com/JTPetrotech/jtpetrotech.github.io/issues/new?template=add-a-game.yml"
+      >Put my game on the Arcade</a></p>
+
+    <p>It goes straight to me. You'll get an email when the card's up, usually
+    the same day.</p>
     <div class="note good">
       <p><b>From then on it's trivial.</b> To update your game, open the
       repository, <b>Add file</b> &rarr; <b>Upload files</b>, drop the new version
