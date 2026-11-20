@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#05080d">
+<meta name="description" content="How to put your own browser game on the Arcade. No command line, no git.">
+<title>Add your game &middot; The Arcade</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%2305080d'/><path d='M32 16 V48 M16 32 H48' stroke='%23ffc43d' stroke-width='7' stroke-linecap='round'/></svg>">
+<!--FONTS-->
+<style>
+:root{
+  --bg:#05080d; --panel:#0e1621; --panel2:#16202e; --line:#243246;
+  --text:#e9f0f8; --muted:#8ea3b9; --amber:#ffc43d; --green:#3ec98a;
+  --red:#e2684f;
+  --display:"Bebas Neue","Haettenschweiler","Arial Narrow",sans-serif;
+  --body:"Barlow","Helvetica Neue",Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{
+  background:
+    radial-gradient(120% 70% at 50% -10%, rgba(255,196,61,.12), transparent 60%),
+    var(--bg);
+  color:var(--text);font-family:var(--body);line-height:1.6;
+  -webkit-text-size-adjust:100%;
+  padding:min(6vh,48px) 16px 64px;
+}
+.wrap{max-width:660px;margin:0 auto}
+
+a.back{color:var(--muted);text-decoration:none;font-size:13px;letter-spacing:.04em;
+  text-transform:uppercase;font-weight:700}
+a.back:hover{color:var(--amber)}
+
+h1{font-family:var(--display);font-size:clamp(42px,11vw,70px);line-height:.88;
+  margin:18px 0 0;letter-spacing:.02em}
+h1 em{font-style:normal;color:var(--amber)}
+.lede{color:var(--muted);font-size:16px;margin:14px 0 0}
+.lede b{color:var(--text)}
+
+h2{font-family:var(--display);font-size:27px;letter-spacing:.03em;margin:0 0 4px}
+
+ol.steps{list-style:none;counter-reset:s;padding:0;margin:34px 0 0}
+ol.steps > li{counter-increment:s;position:relative;padding:0 0 26px 54px;margin:0}
+ol.steps > li::before{
+  content:counter(s);position:absolute;left:0;top:-2px;
+  width:36px;height:36px;border-radius:50%;
+  background:var(--panel2);border:1px solid var(--line);
+  font-family:var(--display);font-size:22px;color:var(--amber);
+  display:grid;place-items:center;
+}
+ol.steps > li::after{
+  content:"";position:absolute;left:17.5px;top:40px;bottom:4px;width:1px;background:var(--line);
+}
+ol.steps > li:last-child::after{display:none}
+ol.steps p{margin:6px 0 0;color:var(--muted)}
+ol.steps p b, ol.steps p strong{color:var(--text)}
+
+kbd{font-family:var(--body);font-weight:700;color:var(--text);
+  background:var(--panel2);border:1px solid var(--line);border-bottom-width:2px;
+  border-radius:5px;padding:1px 7px;font-size:13.5px;white-space:nowrap}
+code{font-family:var(--mono);font-size:13px;color:var(--amber);
+  background:#0b1420;border:1px solid #1d2a3b;border-radius:5px;padding:1px 6px}
+
+.note{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--amber);
+  border-radius:0 12px 12px 0;padding:14px 16px;margin:14px 0 0;font-size:14.5px}
+.note.warn{border-left-color:var(--red)}
+.note.good{border-left-color:var(--green)}
+.note p{margin:0;color:var(--muted)}
+.note p + p{margin-top:8px}
+.note b{color:var(--text)}
+
+.url{font-family:var(--mono);font-size:14px;color:var(--green);
+  background:#0a1a13;border:1px solid #1c3a2a;border-radius:8px;
+  padding:11px 13px;margin:12px 0 0;word-break:break-all}
+
+.gotchas{margin:40px 0 0;background:var(--panel);border:1px solid var(--line);
+  border-radius:14px;padding:20px 22px}
+.gotchas ul{margin:12px 0 0;padding-left:20px;color:var(--muted);font-size:14.5px}
+.gotchas li{margin:0 0 9px}
+.gotchas b{color:var(--text)}
+
+.alt{margin:34px 0 0;color:var(--muted);font-size:14.5px}
+.alt a{color:var(--amber)}
+
+footer{margin:44px auto 0;max-width:660px;color:#6b8099;font-size:12.5px;
+  border-top:1px solid var(--line);padding-top:18px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<a class="back" href="../">&larr; The Arcade</a>
+
+<h1>Add <em>your game</em></h1>
+<p class="lede">If your game runs in a browser, you can put it online yourself and
+it'll show up here. <b>No command line, no git, nothing to install</b> &mdash; you
+drag your files into a web page and that's the whole job. About ten minutes the
+first time, under a minute every time after.</p>
+
+<ol class="steps">
+
+  <li>
+    <h2>Get a GitHub account</h2>
+    <p><b>github.com</b> &rarr; Sign up. It's free and stays free &mdash; this
+    isn't a trial. Pick a username you don't mind people seeing, because it ends
+    up in your game's address.</p>
+  </li>
+
+  <li>
+    <h2>Make a place for the game</h2>
+    <p>Click the <kbd>+</kbd> at the top right &rarr; <b>New repository</b>.</p>
+    <p>A "repository" is just a folder that lives online. Name it after your game,
+    lowercase with dashes instead of spaces &mdash; <code>ninja-golf</code>, not
+    <code>Ninja Golf</code>. That name becomes part of the address, so keep it
+    short.</p>
+    <p>Leave it set to <b>Public</b>, and don't tick any of the boxes about README
+    or licence files. Then <b>Create repository</b>.</p>
+  </li>
+
+  <li>
+    <h2>Drag your files in</h2>
+    <p><b>Add file</b> &rarr; <b>Upload files</b>, then drag your game's files
+    straight from your desktop onto the page. Folders work too &mdash; drop the
+    <i>contents</i> of your game folder, not the folder itself.</p>
+    <p>Then write anything in the little message box and hit the green
+    <b>Commit changes</b>.</p>
+    <div class="note warn">
+      <p><b>The one thing that must be right:</b> your main file has to be called
+      exactly <code>index.html</code>, all lowercase. If yours is
+      <code>Game.html</code> or <code>main.html</code>, rename it before you
+      upload. Nothing else about the name matters, and this is the single most
+      common reason a page comes up blank.</p>
+    </div>
+  </li>
+
+  <li>
+    <h2>Turn the website on</h2>
+    <p>This bit is hidden away, so follow it exactly:</p>
+    <p><b>Settings</b> (along the top of your repository) &rarr; <b>Pages</b> (down
+    the left-hand side) &rarr; under <b>Build and deployment</b>, set <b>Source</b>
+    to <b>Deploy from a branch</b> &rarr; set the branch to <b>main</b> and the
+    folder to <b>/ (root)</b> &rarr; <b>Save</b>.</p>
+    <p>Give it a minute or two. Refresh the page and a green banner appears with
+    your address.</p>
+  </li>
+
+  <li>
+    <h2>Send the address over</h2>
+    <p>It'll look like this, with your username and your repository name:</p>
+    <div class="url">https://<b>your-username</b>.github.io/<b>your-game</b>/</div>
+    <p>Open it to check it actually works, then send it to me and I'll add a card
+    for it on the Arcade.</p>
+    <div class="note good">
+      <p><b>From then on it's trivial.</b> To update your game, open the
+      repository, <b>Add file</b> &rarr; <b>Upload files</b>, drop the new version
+      over the top, commit. Live in about a minute. You never have to touch the
+      settings again.</p>
+    </div>
+  </li>
+
+</ol>
+
+<div class="gotchas">
+  <h2>If something goes wrong</h2>
+  <ul>
+    <li><b>Blank white page.</b> Nine times out of ten the main file isn't called
+    <code>index.html</code>, or a filename's capitalisation doesn't match. Windows
+    treats <code>Sprites.png</code> and <code>sprites.png</code> as the same file
+    and <b>the web does not</b> &mdash; so if your code asks for
+    <code>sprites.png</code> and the file is actually <code>Sprites.png</code>, it
+    works on your machine and breaks online. Match them exactly.</li>
+
+    <li><b>Images or sounds missing.</b> Same cause, or the folder structure
+    changed during upload. Your files need to sit in the same arrangement they do
+    on your computer.</li>
+
+    <li><b>A file won't upload.</b> Dragging into the browser caps out at
+    <b>25&nbsp;MB per file</b>. Anything bigger needs compressing, or a different
+    route &mdash; ask and I'll sort it.</li>
+
+    <li><b>Nothing happens after Save.</b> It can take a couple of minutes the
+    very first time. If it's still nothing after five, check the repository is
+    <b>Public</b> &mdash; Pages on a private one needs a paid plan.</li>
+
+    <li><b>It worked, then stopped.</b> Every upload replaces what's there. Your
+    old versions aren't lost, though &mdash; GitHub keeps every one of them, so
+    nothing you do here is irreversible.</li>
+  </ul>
+</div>
+
+<p class="alt"><b>Don't fancy any of that?</b> <a href="https://itch.io">itch.io</a>
+takes a single <code>.zip</code> with an <code>index.html</code> inside it and
+hosts browser games for free &mdash; no repositories, no settings pages. A link
+from there works just as well and I'll add it the same way.</p>
+
+<footer>
+Your game stays on your own account, under your own name. You can change it,
+break it, or take it down whenever you feel like it without asking anybody, and
+nothing here can reach into it.
+</footer>
+
+</div>
+</body>
+</html>
