@@ -17,14 +17,17 @@
     "https, a colour that is not a plain hex value. All text is escaped on the",
     "way in. That matters because some of this arrives from other people."
   ],
-
   "games": [
     {
       "name": "Top Shelf",
       "kind": "3D Hockey",
       "url": "https://jtpetrotech.github.io/top-shelf/",
       "desc": "Five a side on ice, four on roller. Career mode with cards, packs, custom sticks and a season. Play the CPU, a friend on the same screen, or manage from the bench.",
-      "pills": ["1–2 players", "Offline", "Gamepad"],
+      "pills": [
+        "1–2 players",
+        "Offline",
+        "Gamepad"
+      ],
       "accent": "#2f7fe0",
       "tile": "#0c1724",
       "art": "top-shelf"
@@ -34,10 +37,28 @@
       "kind": "Texas Hold’em",
       "url": "https://jtpetrotech.github.io/poker-pages/",
       "desc": "Play-money No-Limit Hold’em with your friends. One person hosts the table in their own browser and everyone else connects straight to it — the cards go peer to peer, with no server in the middle.",
-      "pills": ["Multiplayer", "Play money", "No install"],
+      "pills": [
+        "Multiplayer",
+        "Play money",
+        "No install"
+      ],
       "accent": "#3ec98a",
       "tile": "#0b1a14",
       "art": "side-pot"
+    },
+    {
+      "name": "Redline",
+      "kind": "Arcade Racing",
+      "url": "https://jtpetrotech.github.io/redline/",
+      "desc": "Race, win credits, and spend them on parts that genuinely change the car. Aero costs you top speed, short gears run out of road, a stripped shell is quicker and twitchier. Five cars, three tracks, eight events.",
+      "pills": [
+        "1 player",
+        "Offline",
+        "Gamepad"
+      ],
+      "accent": "#e8463c",
+      "tile": "#1d1214",
+      "art": "redline"
     }
   ]
 }
