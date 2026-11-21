@@ -7,6 +7,8 @@
     "  kind     the small line under the name",
     "  url      where it lives. Somebody else's game points at their own site.",
     "  desc     a sentence or three. Plain text; the build escapes it.",
+    "           Describe the game, not its contents. A count (\"five cars\") goes",
+    "           stale the next time somebody adds one, and nothing tells the hub.",
     "  pills    up to three short tags",
     "  accent   the top border and the Play colour",
     "  art      optional: src/art/<art>.svg. Left out, the build draws a",
@@ -50,7 +52,7 @@
       "name": "Big Turbos",
       "kind": "Arcade Racing",
       "url": "https://jtpetrotech.github.io/big-turbos/",
-      "desc": "Eleven cars and a garage where every expensive part is a trade — aero costs you top speed, short gears run out of road, a stripped shell is quicker and twitchier. Race the circuits, run the quarter mile, or just drive around the map.",
+      "desc": "A garage where every expensive part is a trade — aero costs you top speed, short gears run out of road, nitrous is weight you carry whether you press it or not. Race the championships, run the quarter mile, or just drive around the map.",
       "pills": [
         "1 player",
         "Offline",
