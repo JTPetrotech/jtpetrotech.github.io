@@ -64,24 +64,46 @@ a.game:active{transform:translateY(0)}
   font-family:var(--display);font-size:22px;letter-spacing:.06em;color:var(--amber)}
 .play svg{width:15px;height:15px}
 
-a.add{
+section.add{
   width:100%;max-width:860px;margin-top:14px;
-  display:flex;align-items:center;gap:14px;
-  text-decoration:none;color:inherit;
   background:rgba(14,22,33,.5);
-  border:1px dashed #2d3f57;border-radius:16px;padding:15px 18px;
-  transition:border-color .14s ease,background .14s ease;
+  border:1px dashed #2d3f57;border-radius:16px;padding:15px 18px 17px;
 }
-a.add:hover,a.add:focus-visible{border-color:var(--amber);background:var(--panel);outline:none}
-a.add .plus{
+.addtop{display:flex;align-items:center;gap:14px}
+.add .plus{
   flex:0 0 38px;height:38px;border-radius:50%;
   border:1px solid #2d3f57;display:grid;place-items:center;
   font-family:var(--display);font-size:26px;color:var(--amber);line-height:1
 }
-a.add .t{display:block;font-family:var(--display);font-size:24px;letter-spacing:.02em;line-height:1}
-a.add .d{display:block;font-size:13px;color:var(--muted);margin-top:4px;line-height:1.45}
-a.add .go{margin-left:auto;color:var(--amber);font-size:20px}
-@media (max-width:520px){ a.add .go{display:none} }
+.add .t{display:block;font-family:var(--display);font-size:24px;letter-spacing:.02em;line-height:1}
+.add .d{display:block;font-size:13px;color:var(--muted);margin-top:4px;line-height:1.45}
+
+/* The steps are on the page, not only behind the link. Somebody deciding
+   whether to bother can see the whole job without going anywhere. */
+ol.steps{margin:16px 0 0;padding:0;list-style:none;counter-reset:s;display:grid;gap:10px}
+ol.steps li{
+  counter-increment:s;position:relative;padding-left:33px;
+  font-size:13.5px;color:var(--muted);line-height:1.5;
+}
+ol.steps li::before{
+  content:counter(s);position:absolute;left:0;top:0;
+  width:22px;height:22px;border-radius:50%;
+  background:#0b1420;border:1px solid var(--line);
+  font-family:var(--display);font-size:14px;color:var(--amber);
+  display:grid;place-items:center;line-height:1;
+}
+ol.steps b{color:var(--text);font-weight:700}
+ol.steps code,ol.steps kbd{
+  font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;
+  background:#0b1420;border:1px solid var(--line);border-radius:5px;
+  padding:1px 5px;color:var(--text);
+}
+.add .more{
+  display:inline-block;margin-top:15px;
+  font-size:13px;font-weight:700;color:var(--amber);text-decoration:none;
+  border-bottom:1px solid transparent;
+}
+.add .more:hover,.add .more:focus-visible{border-bottom-color:var(--amber);outline:none}
 
 footer{margin-top:clamp(26px,6vh,46px);max-width:620px;text-align:center;color:var(--muted);font-size:12.5px;line-height:1.6}
 footer b{color:var(--text);font-weight:700}
@@ -102,19 +124,30 @@ footer .sep{margin:16px auto 0;height:1px;max-width:220px;background:var(--line)
 
 </main>
 
-<a class="add" href="add-a-game/">
-  <span class="plus" aria-hidden="true">+</span>
-  <span>
-    <span class="t">Add your game</span>
-    <span class="d">Made something that runs in a browser? Put it up yourself &mdash; no command line, ten minutes.</span>
-  </span>
-  <span class="go" aria-hidden="true">&rarr;</span>
-</a>
+<section class="add">
+  <div class="addtop">
+    <span class="plus" aria-hidden="true">+</span>
+    <span>
+      <span class="t">Add your game</span>
+      <span class="d">Made something that runs in a browser? Put it up yourself &mdash; no command line, nothing to install, about ten minutes.</span>
+    </span>
+  </div>
+
+  <ol class="steps">
+    <li><b>Get a GitHub account.</b> At <b>github.com</b>. It is free and stays free.</li>
+    <li><b>Make a place for it.</b> The <kbd>+</kbd> at the top right &rarr; <b>New repository</b>. Give it a short name, leave it <b>Public</b>, and tick none of the boxes about README or licence files.</li>
+    <li><b>Drag your files in.</b> <b>Add file</b> &rarr; <b>Upload files</b>, drop the whole lot in, then <b>Commit changes</b>. Your main file must be called <code>index.html</code> &mdash; all lowercase, that exactly.</li>
+    <li><b>Turn the website on.</b> <b>Settings</b> &rarr; <b>Pages</b> &rarr; set Source to <b>Deploy from a branch</b>, the branch to <b>main</b> and the folder to <b>/ (root)</b> &rarr; <b>Save</b>. The first build takes a minute or two.</li>
+    <li><b>Send the address over.</b> It looks like <code>your-name.github.io/your-game/</code>, and it goes up here next to the rest.</li>
+  </ol>
+
+  <a class="more" href="add-a-game/">The long version, with what to do when it goes wrong &rarr;</a>
+</section>
 
 <footer>
   <p><b>On a phone?</b> Open a game, then add it to your home screen &mdash; iPhone: Share, then Add to Home Screen. Android: the browser menu, then Add to Home screen. It opens full screen after that, like an app.</p>
   <div class="sep"></div>
-  <p style="margin-top:16px">Both games are free, have no ads and take no payment of any kind. Nothing you do in them leaves your device except Side Pot&rsquo;s connection to the people you are playing with.</p>
+  <p style="margin-top:16px">Every game here is free, has no ads and takes no payment of any kind. Nothing you do in them leaves your device except Side Pot&rsquo;s connection to the people you are playing with.</p>
 </footer>
 
 </body>
