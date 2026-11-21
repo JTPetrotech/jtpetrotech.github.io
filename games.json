@@ -47,10 +47,10 @@
       "art": "side-pot"
     },
     {
-      "name": "Redline",
+      "name": "Big Turbos",
       "kind": "Arcade Racing",
-      "url": "https://jtpetrotech.github.io/redline/",
-      "desc": "Race, win credits, and spend them on parts that genuinely change the car. Aero costs you top speed, short gears run out of road, a stripped shell is quicker and twitchier. Five cars, three tracks, eight events.",
+      "url": "https://jtpetrotech.github.io/big-turbos/",
+      "desc": "Eleven cars and a garage where every expensive part is a trade — aero costs you top speed, short gears run out of road, a stripped shell is quicker and twitchier. Race the circuits, run the quarter mile, or just drive around the map.",
       "pills": [
         "1 player",
         "Offline",
@@ -58,7 +58,7 @@
       ],
       "accent": "#e8463c",
       "tile": "#1d1214",
-      "art": "redline"
+      "art": "big-turbos"
     }
   ]
 }
