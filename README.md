@@ -8,6 +8,9 @@ Live: **https://jtpetrotech.github.io/**
   side on ice, four on roller, career mode, two players on one screen.
 - **[Side Pot](https://jtpetrotech.github.io/poker-pages/)** — play-money
   No-Limit Hold'em, peer to peer, no server in the middle.
+- **[Outpost Zero](https://jtpetrotech.github.io/outpost-zero/)** — low-poly
+  first-person shooter against patrol bots, with a red-dot rifle, a scoped
+  sniper and an SMG. The game itself lives in this repo at `outpost-zero/`.
 
 ## Why this repo is named the way it is
 
