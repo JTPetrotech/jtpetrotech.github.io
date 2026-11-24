@@ -21,8 +21,38 @@ on the shelf, because every game is served from `jtpetrotech.github.io` and a
 browser treats that as one place: signing in on the Arcade *is* signing in to
 Side Pot and Top Shelf, with nothing to pass between them.
 
-The code is in `account/`. Nothing here is wired into the games yet - that is
-the next job.
+The code is in `account/`. Every game on the shelf is wired in: sign in on the
+Arcade and your progress in each game is kept in your account.
+
+### Saved progress
+
+`account/sync.js` does it without the games knowing. Each game already keeps
+its progress in localStorage; it names the keys (`syncGame('big-turbos',
+['bigturbos_v1'])`) and sync.js keeps a copy of them in the account, and puts
+the account's copy back when somebody signs in.
+
+| game | id | keys kept |
+|---|---|---|
+| Top Shelf | `top-shelf` | `ts_save_v1`, `sa_tut` |
+| Side Pot | `poker` | `pn.profile.v1` (vault), `pn.friends.v1`, `pn.look.v1` |
+| Big Turbos | `big-turbos` | `bigturbos_v1` |
+| Outpost Zero | `outpost-zero` | every `oz_` key |
+
+- **First sign-in** keeps what you played as a guest: it becomes the account's.
+- **Signing out** puts the guest's own progress back, so the next person on the
+  device never picks up yours. A new account starts from the guest's progress,
+  never from another account's.
+- **Signing in** puts that account's progress in place. Games read their save
+  once when they start, so the page reloads once when the save changes.
+- Changes are sent every couple of seconds and when the tab is hidden or closed.
+
+Until Firebase is switched on (below) all of this is still in this browser
+only: progress follows the account between people on one device, not between
+devices. Once it is on, the same code follows you to any device with nothing
+else to change.
+
+Opened anywhere other than the live site - a memory stick, a Pi - the import of
+`/account/sync.js` fails quietly and each game runs exactly as before.
 
 ### Two modes
 

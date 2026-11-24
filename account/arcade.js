@@ -37,6 +37,10 @@ export { cleanName, display, nameProblem, passProblem, isConfigured };
 const SDK = 'https://www.gstatic.com/firebasejs/10.14.1/';
 
 let state = 'cold'; // cold | device | cloud | unreachable
+// False until the first real answer about who is signed in. In cloud mode the
+// project is reachable a moment before Firebase has said whether anyone is
+// signed in, and "nobody" in that gap is a guess, not an answer.
+let settled = false;
 let mods = null;
 let auth = null;
 let db = null;
@@ -58,6 +62,7 @@ export function whoami() {
 }
 
 function announce() {
+  settled = true;
   for (const fn of listeners) {
     try {
       fn(who);
@@ -73,7 +78,7 @@ function announce() {
  */
 export function onAccount(fn) {
   listeners.add(fn);
-  if (state !== 'cold') fn(who);
+  if (settled) fn(who);
   return () => listeners.delete(fn);
 }
 
