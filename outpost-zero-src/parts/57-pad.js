@@ -1,10 +1,12 @@
 /* ---------- controller ----------
    Standard layout, the one most shooters use:
      left stick   move, analog (click it to sprint)     right stick  look
-     LT aim   RT fire   A jump   B crouch
+     LT or LB aim   RT or RB fire (hold for semi-autos too)   A jump   B crouch
      X reload, or use / pick up / drive when there is something to use
-     RB use too   Y or LB switch gun   click right stick to steady a scope
-     d-pad up/down switch gun   View/Back scoreboard   Start pause
+     Y or d-pad up/down switch gun   click right stick to steady a scope
+     View/Back scoreboard   Start pause
+   Pads that do not report the standard layout often put their triggers on
+   axes that rest at -1; those are found and read as triggers too.
    Driving: RT gas, LT brake and reverse, left stick steers, X or RB gets out.
    The menus are PadNav's job (padnav.js, prepended by the build).
 
@@ -21,6 +23,21 @@ let padUsing = false;                 // the last thing touched was the pad: pro
 const padMove = { x: 0, y: 0 };       // analog move, -1..1, y forward
 const padDrive = { on: false, thr: 0, steer: 0 };
 const padPrev = [];
+const padRest = {};                   // per pad: the axes as first seen, to spot triggers that rest at -1
+// how far a trigger is pulled, 0..1: the trigger, its bumper, or a trigger on an axis
+function padTrigs(gp) {
+  let L = Math.max(padVal(gp, 6), padVal(gp, 4)), R = Math.max(padVal(gp, 7), padVal(gp, 5));
+  let look = [2, 3];
+  if (gp.mapping !== 'standard') {
+    const rest = padRest[gp.id] || (padRest[gp.id] = gp.axes.slice());
+    const trig = [];
+    for (let i = 2; i < gp.axes.length; i++) if (rest[i] < -0.8) trig.push(i);
+    if (trig.length >= 2) { L = Math.max(L, (gp.axes[trig[0]] + 1) / 2); R = Math.max(R, (gp.axes[trig[1]] + 1) / 2); }
+    const sticks = []; for (let i = 2; i < gp.axes.length && sticks.length < 2; i++) if (!trig.includes(i)) sticks.push(i);
+    if (sticks.length === 2) look = sticks;
+  }
+  return { L, R, look };
+}
 
 function padDown(gp, i) { const b = gp.buttons[i]; return !!(b && (b.pressed || b.value > 0.35)); }
 function padVal(gp, i) { const b = gp.buttons[i]; return b ? (b.value || (b.pressed ? 1 : 0)) : 0; }
@@ -85,8 +102,10 @@ function padFrame(now) {
   const edge = i => down[i] && !was[i];
   for (let i = 0; i < down.length; i++) padPrev[i] = down[i];
   const [mx, my] = padStick2(gp.axes[0] || 0, gp.axes[1] || 0);
-  const [lx, ly] = padStick2(gp.axes[2] || 0, gp.axes[3] || 0, 0.12);
-  if (down.some(Boolean) || mx || my || lx || ly) padUsing = true;
+  const T = padTrigs(gp), ltOn = T.L > 0.3, rtOn = T.R > 0.3;
+  const [lx, ly] = padStick2(gp.axes[T.look[0]] || 0, gp.axes[T.look[1]] || 0, 0.12);
+  if (down.some(Boolean) || mx || my || lx || ly || ltOn || rtOn) padUsing = true;
+  padShowInfo(gp, down, T);
 
   if (!G.playing || G.paused || G.over || !P.alive) { if (padHeld.size || padMouseL || padMouseR || padDrive.on) padRelease(); padSnapT = 0; return; }
 
@@ -103,22 +122,23 @@ function padFrame(now) {
   // driving: analog throttle on the triggers, the stick steers
   padDrive.on = !!P.veh;
   if (P.veh) {
-    padDrive.thr = padVal(gp, 7) - padVal(gp, 6) + (padVal(gp, 7) < .1 && padVal(gp, 6) < .1 ? Math.max(0, -my) - Math.max(0, my) : 0);
+    padDrive.thr = T.R - T.L + (T.R < .1 && T.L < .1 ? Math.max(0, -my) - Math.max(0, my) : 0);
     padDrive.steer = -mx;
     if (padMouseL) { mouse.l = false; padMouseL = false; }
     if (padMouseR) { mouse.r = false; padMouseR = false; }
   } else {
     // triggers: LT aim, RT fire
-    if (down[6] && !mouse.r) { mouse.r = true; padMouseR = true; padSnapT = 0.18; }
-    else if (!down[6] && padMouseR) { mouse.r = false; padMouseR = false; }
-    if (down[7] && !mouse.l) { mouse.l = true; padMouseL = true; triggerT = G.time; }
-    else if (!down[7] && padMouseL) { mouse.l = false; padMouseL = false; }
+    if (ltOn && !mouse.r) { mouse.r = true; padMouseR = true; padSnapT = 0.18; }
+    else if (!ltOn && padMouseR) { mouse.r = false; padMouseR = false; }
+    if (rtOn && !mouse.l) { mouse.l = true; padMouseL = true; triggerT = G.time; }
+    else if (!rtOn && padMouseL) { mouse.l = false; padMouseL = false; }
+    // holding the trigger keeps a semi-auto firing as fast as it can, as console shooters do
+    if (padMouseL && guns[cur] && !guns[cur].s.auto) triggerT = G.time;
     if (edge(1)) P.crouch = !P.crouch;
   }
   // X: use whatever is in front of you, otherwise reload
   if (edge(2)) { if (P.veh || findInteract()) interact(); else startReload(); }
-  if (edge(5)) interact();
-  if (!P.veh && (edge(3) || edge(4) || edge(12) || edge(13))) swapTo(1 - cur);
+  if (!P.veh && (edge(3) || edge(12) || edge(13))) swapTo(1 - cur);
 
   // look: an expo curve for fine aim near the centre, a turn boost when the
   // stick is held right over, slower while aiming down the sights
@@ -144,6 +164,19 @@ function padFrame(now) {
   padSnapT = Math.max(0, padSnapT - dt);
 }
 requestAnimationFrame(padFrame);
+// On the pause screen: which controller the game sees and what it is pressing,
+// so a controller that misbehaves can be checked button by button.
+const PAD_NAMES = ['A', 'B', 'X', 'Y', 'LB', 'RB', 'LT', 'RT', 'View', 'Start', 'L-stick', 'R-stick', 'Up', 'Down', 'Left', 'Right', 'Home'];
+let padInfoT = 0;
+function padShowInfo(gp, down, T) {
+  const el = $('padInfo'); if (!el) return;
+  const show = G.paused && !$('pause').hidden;
+  el.hidden = !show; if (!show) return;
+  const now = performance.now(); if (now - padInfoT < 100) return; padInfoT = now;
+  const on = down.map((d, i) => d ? (PAD_NAMES[i] || 'b' + i) : null).filter(Boolean);
+  if (T.L > 0.05) on.push('aim ' + Math.round(T.L * 100) + '%'); if (T.R > 0.05) on.push('fire ' + Math.round(T.R * 100) + '%');
+  el.textContent = `Controller: ${gp.id.replace(/\s*\(.*$/, '').slice(0, 40)} · ${gp.mapping === 'standard' ? 'standard layout' : 'non-standard layout'} · pressing: ${on.length ? on.join(', ') : 'nothing'}`;
+}
 // a key or the mouse means the keyboard is in charge again
 addEventListener('keydown', () => { padUsing = false; });
 addEventListener('mousedown', () => { padUsing = false; });
