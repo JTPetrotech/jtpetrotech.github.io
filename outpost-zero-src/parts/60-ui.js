@@ -97,7 +97,35 @@ $('play').addEventListener('click', startOfflineGame);
 
 /* ---------- loadout ---------- */
 let loSlot = 0, loReturn = 'menu';
-function openLoadout(from) { loReturn = from; showOnly('loadout'); renderLoadout(); }
+function openLoadout(from) {
+  loReturn = from; showOnly('loadout');
+  $('loEye').textContent = from === 'bench' ? 'Workbench · swap guns, change scopes and mods, pick a skin' : 'Loadout · two guns, mods and a skin on each';
+  $('loDone').textContent = from === 'bench' ? 'Done · back to the fight' : 'Done';
+  renderLoadout();
+}
+// A workbench edits the guns you are holding right now, and saves them as your loadout.
+function openBench() {
+  if (!G.playing || G.paused) return;
+  G.paused = true; mouse.l = mouse.r = false; // paused first, so losing the mouse lock does not open the pause menu
+  if (document.exitPointerLock && locked) document.exitPointerLock();
+  loadout = guns.map(g => ({ id: g.id, att: Object.assign({}, g.att), skin: g.skin }));
+  loSlot = cur; sndClick(700); sndClick(900, .1);
+  openLoadout('bench');
+}
+function closeBench() {
+  saveLoadout(); refreshBest();
+  guns = loadout.map((sl, i) => {
+    const old = guns[i];
+    if (old && old.id === sl.id && old.skin === sl.skin && JSON.stringify(old.att) === JSON.stringify(sl.att)) return old;
+    const h = makeHeld(sl);
+    if (old && old.id === sl.id) { h.magLeft = Math.min(h.s.mag, old.magLeft); h.reserveLeft = old.reserveLeft; }
+    if (old) disposeGunModel(old.m);
+    return h;
+  });
+  reloading = false; swapT = 0; burstLeft = 0; cur = loSlot;
+  showOnly(null); G.paused = false; lock(); canvas.focus();
+  toast('WORKBENCH · GUNS UPDATED');
+}
 $('openLoadout').addEventListener('click', () => openLoadout('menu'));
 $('lobbyLoadout').addEventListener('click', () => openLoadout('lobby'));
 $('pauseLoadout').addEventListener('click', () => openLoadout('pause'));
@@ -114,6 +142,7 @@ $('loAtts').addEventListener('click', e => {
 $('loSkins').addEventListener('click', e => { const b = e.target.closest('button[data-skin]'); if (!b) return; loadout[loSlot].skin = b.dataset.skin; renderLoadout(); });
 $('loReset').addEventListener('click', () => { loadout[loSlot].att = defaultAtt(loadout[loSlot].id); renderLoadout(); });
 $('loDone').addEventListener('click', () => {
+  if (loReturn === 'bench') { closeBench(); return; }
   saveLoadout(); refreshBest();
   if (G.playing) {
     if (G.mode === 'bots') { equip(); toast('LOADOUT SWAPPED'); }
@@ -151,7 +180,7 @@ function renderLoadout() {
     else bars = `<i style="width:${cv}%"></i><i class="dn" style="left:${cv}%;width:${bv - cv}%"></i>`;
     return `<div class="sb"><span>${label}</span><span class="tr">${bars}</span><span>${txt}</span></div>`;
   }).join('');
-  $('loNote').textContent = G.mode === 'net' && G.playing ? 'Changes take effect the next time you spawn.' : 'Green is better than this gun with no mods, red is worse. Skins only change the look.';
+  $('loNote').textContent = loReturn === 'bench' ? (G.mode === 'net' ? 'The match keeps going while you work, so pick a quiet spot.' : 'The game is paused while you work.') : G.mode === 'net' && G.playing ? 'Changes take effect the next time you spawn.' : 'Green is better than this gun with no mods, red is worse. Skins only change the look.';
 }
 
 /* ---------- joining ---------- */

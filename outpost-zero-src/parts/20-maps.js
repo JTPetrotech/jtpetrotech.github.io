@@ -3,7 +3,7 @@
    match share a map without sending it. Maps meant for team play are built
    point-symmetric: whatever stands at (x, z) also stands at (-x, -z). */
 
-const world = { id: null, half: 200, h: () => 0, boxes: [], circles: [], shootables: [], objs: [], spawns: [[], []], water: null, cratePts: [] };
+const world = { id: null, half: 200, h: () => 0, boxes: [], circles: [], shootables: [], objs: [], spawns: [[], []], water: null, cratePts: [], benchPts: [], vehPts: [] };
 const heightAt = (x, z) => world.h(x, z);
 const sstep = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
 
@@ -367,6 +367,48 @@ function buildDowntown(B) {
   B.mountains(world.half + 120, world.half + 170, [0x7a858c, 0x8a9399], 30, 60);
 }
 
+// Frontier: the big one. Towns joined by dirt roads, a tank farm, a container yard, forests between.
+const FRONTIER_TOWNS = [[0, 0, 1.25], [-190, -150, 1], [200, -170, 1], [-210, 170, 1], [185, 190, 1], [10, -245, 0.8], [-262, 8, 0.8], [262, 22, 0.8], [-5, 240, 0.8]];
+const FRONTIER_ROADS = [];
+for (let i = 1; i < FRONTIER_TOWNS.length; i++) FRONTIER_ROADS.push([0, 0, FRONTIER_TOWNS[i][0], FRONTIER_TOWNS[i][1]]);
+FRONTIER_ROADS.push([-190, -150, 10, -245], [200, -170, 10, -245], [-210, 170, -5, 240], [185, 190, -5, 240], [-262, 8, -210, 170], [262, 22, 200, -170]);
+function roadDist(x, z) {
+  let best = 1e9;
+  for (const [ax, az, bx, bz] of FRONTIER_ROADS) {
+    const dx = bx - ax, dz = bz - az, t = clamp(((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz), 0, 1);
+    best = Math.min(best, Math.hypot(x - ax - dx * t, z - az - dz * t));
+  }
+  return best;
+}
+function buildFrontier(B) {
+  B.fence(4, 0x8a8478);
+  for (const [tx, tz, k] of FRONTIER_TOWNS) {
+    const n = Math.round(10 * k);
+    for (let i = 0, made = 0; i < 80 && made < n; i++) {
+      const x = tx + B.R(-34, 34) * k, z = tz + B.R(-34, 34) * k;
+      if (roadDist(x, z) < 9) continue;
+      const h = B.r() < 0.45 ? B.R(3.4, 4.6) : B.R(5, 10), w = B.R(8, 13), d = B.R(8, 13);
+      if (B.building(x, z, w, d, h, h < 7 && B.r() < 0.6)) made++;
+    }
+    for (let i = 0; i < 14 * k; i++) { const x = tx + B.R(-40, 40), z = tz + B.R(-40, 40); if (isClear(x, z, 1)) B.crate(x, z, B.r() < 0.35); }
+    for (let i = 0; i < 10 * k; i++) { const x = tx + B.R(-45, 45), z = tz + B.R(-45, 45), l = B.R(3, 7), al = B.r() < 0.5; if (isClear(x, z, l / 2 + 0.5)) B.wall(x, z, l, al, B.R(1.1, 1.4)); }
+    for (let i = 0; i < 6 * k; i++) { const x = tx + B.R(-30, 30), z = tz + B.R(-30, 30); if (roadDist(x, z) < 6 && isClear(x, z, 2.6)) B.car(x, z, B.r() < 0.5, B.pick(CARS)); }
+  }
+  for (const [x, z, r, h] of [[110, 40, 8, 10], [128, 22, 6, 8], [96, 62, 7, 9], [134, 60, 5, 7]]) if (isClear(x, z, r + 1)) B.tank(x, z, r, h, 0xd3d6d2);
+  B.pipes(116, 82, 30, true);
+  for (let i = 0, n = 0; i < 200 && n < 18; i++) { const x = -120 + B.R(-30, 30), z = -30 + B.R(-30, 30), al = B.r() < 0.6;
+    if (isClear(x, z, 7)) { B.container(x, z, al, B.r() < 0.5 ? 6 : 12, B.r() < 0.5 ? 1 : 2, B.pick(BOXCOL)); n++; } }
+  B.crane(-120, 10);
+  for (const [x, z] of [[60, -90], [-90, 90], [150, -40], [-150, -60]]) if (isClear(x, z, 3)) B.mast(x, z, 24);
+  for (let k = 0; k < 14; k++) {
+    const cx = B.R(-290, 290), cz = B.R(-290, 290);
+    for (let i = 0; i < 45; i++) { const x = cx + B.R(-40, 40), z = cz + B.R(-40, 40); if (roadDist(x, z) > 7 && isClear(x, z, 1.6)) B.tree(x, z, B.r() < 0.5 ? 'pine' : 'leaf'); }
+  }
+  for (let i = 0; i < 260; i++) { const x = B.R(-300, 300), z = B.R(-300, 300); if (roadDist(x, z) > 8 && isClear(x, z, 1.6)) B.tree(x, z, 'leaf'); }
+  for (let i = 0; i < 160; i++) { const x = B.R(-300, 300), z = B.R(-300, 300), s = B.R(0.8, 3); if (roadDist(x, z) > 7 && isClear(x, z, s + 0.5)) B.rock(x, z, s); }
+  for (let i = 0; i < 120; i++) { const x = B.R(-300, 300), z = B.R(-300, 300), l = B.R(3, 7), al = B.r() < 0.5; if (roadDist(x, z) > 7 && isClear(x, z, l / 2 + 0.5)) B.wall(x, z, l, al, B.R(1.0, 1.4), [0x8f8b80, 0x9e9888]); }
+  B.mountains(world.half + 60, world.half + 120, [0x7f8c6d, 0x8a8f86, 0x9a9a8c], 45, 90);
+}
 const streetDist = v => Math.abs(v - Math.round(v / 30) * 30);
 const MAPS = {
   valley: { name: 'Valley', blurb: 'Huge open valley, town in the middle', half: 200, axis: 'x', sky: 0xb4ccd8, fog: [80, 340], hemi: [0xdcefff, 0x5d6b3c, 0.78], sun: [0xfff0d4, 0.9],
@@ -404,12 +446,16 @@ const MAPS = {
     h: () => 0, seg: 3,
     ground: (c, h, n, x, z) => (streetDist(x) < 5 || streetDist(z) < 5) ? c.setHSL(0.6, 0.05, 0.2 + n * 0.03) : c.setHSL(0.1, 0.06, 0.5 + n * 0.05),
     build: buildDowntown },
+  frontier: { name: 'Frontier', blurb: 'The big one: nine towns, roads, forests', half: 320, axis: 'x', sky: 0xb7cdd8, fog: [110, 470], hemi: [0xdcefff, 0x5d6b3c, 0.8], sun: [0xfff0d4, 0.92],
+    h: (x, z) => 4.2 * Math.sin(x * 0.011) * Math.cos(z * 0.013) + 1.8 * Math.sin(x * 0.031 + z * 0.024) + 0.7 * Math.cos(z * 0.07 - x * 0.02),
+    ground: (c, h, n, x, z) => roadDist(x, z) < 4.5 ? c.setHSL(0.09, 0.22, 0.4 + n * 0.04) : c.setHSL(0.22 + n * 0.05, 0.3, 0.34 + n * 0.05 + h * 0.01),
+    build: buildFrontier, grass: 9000, big: true },
 };
 const MAP_IDS = Object.keys(MAPS);
 
 function clearWorld() {
   for (const o of world.objs) { scene.remove(o); o.geometry.dispose(); o.material.dispose(); }
-  world.objs = []; world.boxes = []; world.circles = []; world.shootables = []; world.cratePts = [];
+  world.objs = []; world.boxes = []; world.circles = []; world.shootables = []; world.cratePts = []; world.benchPts = []; world.vehPts = [];
 }
 function loadMap(id) {
   if (!MAPS[id]) id = 'valley';
@@ -446,12 +492,36 @@ function loadMap(id) {
   const B = makeBuilder(hashStr(id));
   M.build(B);
   if (M.mtn) B.mountains(M.half * 1.25, M.half * 1.45, [0x7f8c6d, 0x8a8f86], 30, 60);
+  // workbenches: a table, a pegboard and a lamp. Walk up and press E to change guns and mods.
+  const nBench = clamp(Math.round(M.half / 45), 2, 10);
+  for (let i = 0; i < 1200 && world.benchPts.length < nBench; i++) {
+    const x = B.R(-M.half + 8, M.half - 8), z = B.R(-M.half + 8, M.half - 8);
+    if (!isClear(x, z, 3)) continue;
+    if (world.benchPts.some(([a, b]) => Math.hypot(a - x, b - z) < M.half * 0.5)) continue;
+    const g = heightAt(x, z);
+    B.box(x, z, 2.2, 0.95, 0.95, 0x6b4e34);
+    B.box(x, z - 0.62, 2.2, 0.12, 1.25, 0x7d858b, { base: g + 0.95 });
+    B.inst.win.push({ p: [x, g + 0.97, z], s: [2.24, 0.06, 0.99], c: 0x9b7b52 });
+    B.inst.win.push({ p: [x - 0.6, g + 1.06, z + 0.1], s: [0.22, 0.14, 0.2], c: 0x2f3439 });
+    B.inst.win.push({ p: [x + 0.3, g + 1.03, z + 0.05], s: [0.9, 0.07, 0.12], c: 0x24282c });
+    B.inst.win.push({ p: [x, g + 2.32, z - 0.5], s: [1.4, 0.2, 0.2], c: 0xffb547 });
+    world.benchPts.push([x, z]);
+  }
+  // vehicle parking spots, also by seed so every browser puts the same jeep in the same place
+  const nVeh = M.half < 50 ? 0 : clamp(Math.round(M.half / 22), 3, 22);
+  for (let i = 0; i < 1500 && world.vehPts.length < nVeh; i++) {
+    const x = B.R(-M.half + 10, M.half - 10), z = B.R(-M.half + 10, M.half - 10);
+    if (!isClear(x, z, 3.2)) continue;
+    if (world.vehPts.some(([a, b]) => Math.hypot(a - x, b - z) < M.half * 0.18)) continue;
+    world.vehPts.push([x, z, B.R(0, 6.28)]);
+  }
   // crate spots for battle royale: decided by the map seed, so every browser agrees on them
-  const nCrates = clamp(Math.round(M.half / 3), 10, 56);
+  const nCrates = clamp(Math.round(M.half / 3), 10, 90);
   for (let i = 0; i < 900 && world.cratePts.length < nCrates; i++) {
     const x = B.R(-M.half + 6, M.half - 6), z = B.R(-M.half + 6, M.half - 6);
     if (!isClear(x, z, 1.3)) continue;
     if (world.cratePts.some(([a, b]) => Math.hypot(a - x, b - z) < 9)) continue;
+    if (world.vehPts.some(([a, b]) => Math.hypot(a - x, b - z) < 4)) continue;
     world.cratePts.push([x, z]);
   }
   // grass and clouds are only looks: not solid, and they stop no bullets

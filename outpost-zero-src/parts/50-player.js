@@ -5,7 +5,7 @@ const G = { mode: null, rules: { kind: 'br', squad: 1, limit: 30 }, diff: store.
 if (!MAPS[G.map]) G.map = 'valley';
 if (!DIFF[G.diff]) G.diff = 'normal';
 const P = { pos: new THREE.Vector3(), vel: new THREE.Vector3(), vy: 0, feet: 0, yaw: 0, pitch: 0, onGround: false, crouch: false, eye: 1.65,
-  hp: 100, armor: 0, lastHurt: -99, alive: true, sprint: false, breath: 1, drop: false };
+  hp: 100, armor: 0, lastHurt: -99, alive: true, sprint: false, breath: 1, drop: false, veh: null };
 let guns = [];
 let cur = 0, adsT = 0, swapT = 1, kick = 0, bob = 0, nextShot = 0, reloading = false, reloadEnd = 0, flashT = 0, triggerT = -9, locked = false;
 let burstLeft = 0, recoilAcc = 0, lastShotT = -9, sprintOut = 0, stepAcc = 0, landDip = 0, lookDX = 0, lookDY = 0, swayX = 0, swayY = 0, airVy = 0;
@@ -153,17 +153,28 @@ function fire() {
 }
 
 /* ---------- picking things up ---------- */
+function nearestBench(maxD) {
+  for (const [x, z] of world.benchPts) if (Math.hypot(x - P.pos.x, z - P.pos.z) < maxD) return [x, z];
+  return null;
+}
 function findInteract() {
   if (!P.alive || P.drop) return null;
+  if (P.veh) return { kind: 'exit', v: P.veh };
   let best = null, bd = 2.4;
   for (const gg of groundGuns) { const d = Math.hypot(gg.x - P.pos.x, gg.z - P.pos.z); if (d < bd && Math.abs(gg.y - P.feet) < 2.6) { bd = d; best = { kind: 'gun', gg }; } }
   if (best) return best;
+  const v = nearestVehicle(3.4);
+  if (v) return { kind: 'veh', v };
+  if (nearestBench(2.6)) return { kind: 'bench' };
   const c = nearestCrate(P.pos, 2.5, true);
   if (c && Math.abs(c.y - P.feet) < 2) return { kind: 'crate', c };
   return null;
 }
 function interact() {
   const it = findInteract(); if (!it) return;
+  if (it.kind === 'exit') { leaveVehicle(); return; }
+  if (it.kind === 'veh') { if (G.mode === 'net') mpSend({ t: 'veh', v: it.v.i, on: 1 }); else enterVehicle(it.v); return; }
+  if (it.kind === 'bench') { openBench(); return; }
   if (it.kind === 'crate') {
     if (G.mode === 'net') mpSend({ t: 'open', c: it.c.i }); else openCrate(it.c, 'me');
     return;
@@ -185,6 +196,7 @@ function interact() {
 /* ---------- moving, aiming, the gun in your hands ---------- */
 const fwd = new THREE.Vector3(), right = new THREE.Vector3(), wish = new THREE.Vector3();
 function updatePlayer(dt, input) {
+  if (P.veh) return updateDriving(dt, input);
   const g = guns[cur], s = g.s;
   fwd.set(-Math.sin(P.yaw), 0, -Math.cos(P.yaw)); right.set(Math.cos(P.yaw), 0, -Math.sin(P.yaw));
   wish.set(0, 0, 0);

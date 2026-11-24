@@ -5,8 +5,9 @@ const OFF = { score: [], respawnAt: 0, endAt: 0, place: 0, teams: 0, killer: '' 
 const BR_DROP = 70;
 
 function clearBots() { bots.forEach(b => b.remove()); bots = []; }
-function clearOffline() { clearBots(); clearLoot(); clearCrates(); clearFx(); G.timers = []; G.spec = null; }
+function clearOffline() { clearBots(); clearLoot(); clearCrates(); clearVehicles(); clearFx(); G.timers = []; G.spec = null; }
 function resetPlayer(x, z, drop) {
+  if (P.veh) { P.veh.driver = null; P.veh.speed = 0; P.veh = null; stopEngine(); }
   P.pos.set(x, 0, z); P.feet = groundAt(x, z, 999) + (drop || 0); P.vel.set(0, 0, 0); P.vy = 0; P.drop = !!drop;
   P.pitch = 0; P.hp = 100; P.alive = true; P.crouch = false; P.breath = 1; adsT = 0; reloading = false; burstLeft = 0; recoilAcc = 0;
 }
@@ -33,8 +34,9 @@ function startOffline() {
   botSerial = 1; zoneMesh.visible = false;
   equip();
   const H = world.half;
+  spawnVehicles((Math.random() * 4e9) >>> 0);
   if (ru.kind === 'br') {
-    const N = ru.squad, base = clamp(Math.round(10 + H / 200 * 22), 10, 32), T = Math.max(2, Math.floor(base / N));
+    const N = ru.squad, base = clamp(Math.round(10 + H / 200 * 22), 10, 40), T = Math.max(2, Math.floor(base / N));
     OFF.teams = T;
     zoneSetup(R(-0.17, 0.17) * H, R(-0.17, 0.17) * H);
     const a0 = R(0, 6.28);
@@ -54,13 +56,14 @@ function startOffline() {
   } else if (ru.kind === 'tdm') {
     OFF.score = [0, 0]; OFF.endAt = 8 * 60;
     const pts = world.spawns;
+    const per = clamp(Math.round(4 + H / 200 * 3), 4, 10);
     const [px, pz] = pts[0][0]; resetPlayer(px, pz, 0); P.yaw = Math.atan2(px, pz);
-    for (let i = 1; i < 6; i++) { const p = pts[0][i % pts[0].length]; bots.push(new Bot(p[0] + R(-2, 2), p[1] + R(-2, 2), 0, { ally: true, name: CALLSIGNS[i - 1] })); }
-    for (let i = 0; i < 6; i++) { const p = pts[1][i % pts[1].length]; bots.push(new Bot(p[0] + R(-2, 2), p[1] + R(-2, 2), 1)); }
+    for (let i = 1; i < per; i++) { const p = pts[0][i % pts[0].length]; bots.push(new Bot(p[0] + R(-2, 2), p[1] + R(-2, 2), 0, { ally: true, name: CALLSIGNS[(i - 1) % CALLSIGNS.length] })); }
+    for (let i = 0; i < per; i++) { const p = pts[1][i % pts[1].length]; bots.push(new Bot(p[0] + R(-2, 2), p[1] + R(-2, 2), 1)); }
     feed(`Team deathmatch · ${MAPS[world.id].name} · first to ${ru.limit}`);
   } else {
     OFF.score = []; OFF.endAt = 8 * 60;
-    const n = clamp(Math.round(5 + H / 200 * 6), 5, 11);
+    const n = clamp(Math.round(5 + H / 200 * 6), 5, 16);
     const [px, pz] = randomClear(0, 0, H * 0.8, 1.2); resetPlayer(px, pz, 0);
     for (let i = 1; i <= n; i++) { const [x, z] = farSpawn(i); bots.push(new Bot(x, z, i)); }
     feed(`Free-for-all · ${MAPS[world.id].name} · first to ${ru.limit}`);
@@ -101,6 +104,7 @@ function onBotKilled(b, src, head) {
 function onPlayerKilled(src) {
   const ru = G.rules;
   G.stats.deaths++;
+  if (P.veh) leaveVehicle(true);
   OFF.killer = nameOfSrc(src);
   feed(`${tagHtml(nameOfSrc(src), teamOfSrc(src))} → ${tagHtml('You', PL.team)}`);
   if (src && src !== 'zone') src.k++;

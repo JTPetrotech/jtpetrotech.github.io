@@ -60,7 +60,10 @@ function updateHUD(dt, scoped, spdH) {
   let prompt = '';
   const it = findInteract();
   if (!P.alive) prompt = V.spec ? `SPECTATING ${escHtml(V.spec.toUpperCase())}` : '';
+  else if (P.veh) prompt = `${Math.round(Math.abs(P.veh.speed) * 3.6)} KM/H · <kbd>W</kbd><kbd>S</kbd> DRIVE · <kbd>A</kbd><kbd>D</kbd> STEER · <kbd>E</kbd> GET OUT`;
   else if (P.drop) prompt = 'PARACHUTING · STEER WITH WASD';
+  else if (it && it.kind === 'veh') prompt = `<kbd>E</kbd> DRIVE ${it.v.T.name.toUpperCase()}`;
+  else if (it && it.kind === 'bench') prompt = '<kbd>E</kbd> USE WORKBENCH · GUNS, SCOPES, MODS, SKINS';
   else if (it && it.kind === 'gun') prompt = `<kbd>E</kbd> TAKE <span style="color:${TIERS[it.gg.tier].css}">${escHtml(GUNS[it.gg.id].name.toUpperCase())}</span> · DROPS ${escHtml(s.name.toUpperCase())}`;
   else if (it && it.kind === 'crate') prompt = `<kbd>E</kbd> OPEN <span style="color:${TIERS[it.c.tier].css}">${TIERS[it.c.tier].name.toUpperCase()}</span> CRATE`;
   else if (reloading) prompt = 'RELOADING';
@@ -78,7 +81,7 @@ function updateHUD(dt, scoped, spdH) {
   const gap = 4 + spread * innerHeight / (2 * Math.tan(camera.fov * Math.PI / 360));
   const ch = $('cross').children;
   ch[0].style.top = (-gap - 9) + 'px'; ch[1].style.top = gap + 'px'; ch[2].style.left = (-gap - 9) + 'px'; ch[3].style.left = gap + 'px';
-  $('cross').style.opacity = adsT > .4 || P.sprint || !P.alive ? 0 : 1;
+  $('cross').style.opacity = adsT > .4 || P.sprint || !P.alive || P.veh ? 0 : 1;
   $('scope').hidden = !scoped; $('scope').className = 'hud' + (s.overlay === 'x3' ? ' x3' : '');
   $('breath').hidden = !(scoped && s.sway);
   if (scoped && s.sway) $('breathfill').style.width = (P.breath * 100) + '%';
@@ -123,6 +126,8 @@ function drawMinimap(V) {
     const ph = Z.phases[Z.phase];
     if (ph && Z.state === 'wait') { mctx.setLineDash([6 / sc, 5 / sc]); mctx.strokeStyle = 'rgba(255,255,255,.8)'; mctx.beginPath(); mctx.arc(Z.cx, Z.cz, ph.to, 0, Math.PI * 2); mctx.stroke(); mctx.setLineDash([]); }
   }
+  for (const v of vehicles) { mctx.save(); mctx.translate(v.pos.x, v.pos.z); mctx.rotate(-v.yaw); mctx.fillStyle = v.driver === 'me' ? '#ffb547' : '#e9eff1'; const w = 5 / sc, l = 8 / sc; mctx.fillRect(-w / 2, -l / 2, w, l); mctx.restore(); }
+  for (const [x, z] of world.benchPts) { mctx.fillStyle = '#ffb547'; mctx.beginPath(); mctx.moveTo(x, z - 6 / sc); mctx.lineTo(x + 5 / sc, z + 4 / sc); mctx.lineTo(x - 5 / sc, z + 4 / sc); mctx.closePath(); mctx.fill(); }
   for (const d of V.dots) dot(d.x, d.z, d.col, d.r || 3.2);
   mctx.restore();
   mctx.setTransform(1, 0, 0, 1, 0, 0);

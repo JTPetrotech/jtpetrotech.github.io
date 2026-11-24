@@ -7,8 +7,8 @@
 const MP = { me: null, team: 0, players: new Map(), avatars: new Map(), score: [], rules: { kind: 'tdm', squad: 2, limit: 25 }, map: 'docks', state: 'idle',
   endAt: 0, sendT: 0, pingT: 0, respawnAt: 0, lobby: null, myName: '', killer: '', out: false };
 // What only the host knows
-const HS = { players: new Map(), order: 0, map: 'docks', rules: { kind: 'tdm', squad: 2, limit: 25 }, state: 'lobby', score: [], endAt: 0, snapT: 0, endTimer: null, seed: 0, opened: new Set() };
-const MATCH_MINUTES = 10, MAX_PLAYERS = 8;
+const HS = { players: new Map(), order: 0, map: 'docks', rules: { kind: 'tdm', squad: 2, limit: 25 }, state: 'lobby', score: [], endAt: 0, snapT: 0, endTimer: null, seed: 0, opened: new Set(), vehOwner: new Map() };
+const MATCH_MINUTES = 10, MAX_PLAYERS = 16;
 
 function mpSend(msg) { if (Net.isHost) hostHandle('H', msg); else Net.sendHost(msg); }
 function hostBroadcast(msg, except) { Net.sendAll(msg, except); if (except !== 'H') clientHandle(msg); }
@@ -30,7 +30,7 @@ function hostAssignTeams(shuffle) {
 }
 function hostTeams() { return new Set([...HS.players.values()].filter(p => !p.out).map(p => p.team)); }
 function hostAddPlayer(id, name) {
-  const p = { id, name: cleanName(name), team: 0, k: 0, d: 0, hp: 100, armor: 0, alive: false, out: false, st: [0, 0, 0, 0, 0, 0], lastHit: 0, spawnT: 0, order: ++HS.order };
+  const p = { id, name: cleanName(name), team: 0, k: 0, d: 0, hp: 100, armor: 0, alive: false, out: false, st: [0, 0, 0, 0, 0, 0, -1], lastHit: 0, spawnT: 0, order: ++HS.order };
   HS.players.set(id, p);
   if (HS.state !== 'match') hostAssignTeams(false);
   else if (HS.rules.kind === 'tdm') { const c = [0, 0]; for (const q of HS.players.values()) if (q !== p) c[q.team]++; p.team = c[0] <= c[1] ? 0 : 1; }
@@ -46,7 +46,7 @@ function hostRebalance() {
   const mover = [...HS.players.values()].filter(p => p.team === big).sort((a, b) => b.order - a.order)[0];
   if (!mover) return;
   mover.team = 1 - big;
-  hostBroadcast({ t: 'note', m: `${mover.name} moved to ${TEAM[mover.team].name} to even the teams` });
+  hostBroadcast({ t: 'note', m: `${mover.name} moved to ${TEAM[mover.team % TEAM.length].name} to even the teams` });
   if (HS.state === 'match' && mover.alive) { mover.alive = false; hostBroadcast({ t: 'roster', players: rosterList() }); hostRespawn(mover, 1.5); }
 }
 function hostSpawnPoint(p) {
@@ -75,7 +75,7 @@ function hostStartMatch() {
   hostAssignTeams(false);
   loadMap(HS.map);
   HS.state = 'match'; HS.score = Array(MAX_PLAYERS).fill(0); HS.endAt = performance.now() + MATCH_MINUTES * 60000;
-  HS.seed = (Math.random() * 4e9) >>> 0; HS.opened = new Set();
+  HS.seed = (Math.random() * 4e9) >>> 0; HS.opened = new Set(); HS.vehOwner = new Map();
   const spawns = {}, used = {}, H = world.half, br = HS.rules.kind === 'br';
   let zone = null;
   if (br) zone = [Math.round(R(-0.17, 0.17) * H), Math.round(R(-0.17, 0.17) * H)];
@@ -101,8 +101,12 @@ function hostEndMatch(winTeam) {
   hostBroadcast({ t: 'end', score: HS.score, win, players: rosterList(), rules: HS.rules });
   HS.endTimer = setTimeout(() => { HS.state = 'lobby'; for (const p of HS.players.values()) { p.alive = false; p.out = false; } hostAssignTeams(false); broadcastLobby(); }, 9000);
 }
+function hostReleaseVehicle(p) {
+  for (const [i, o] of HS.vehOwner) if (o === p.id) { HS.vehOwner.delete(i); hostBroadcast({ t: 'veh', v: i, on: 0, by: p.id, x: Math.round(p.st[0] * 100) / 100, z: Math.round(p.st[2] * 100) / 100, y: Math.round(p.st[3] * 100) / 100 }); }
+}
 function hostKill(v, p, head) { // p: the killer, or null for the zone
   v.hp = 0; v.alive = false; v.d++;
+  hostReleaseVehicle(v);
   if (p) { p.k++; if (HS.rules.kind !== 'br') HS.score[p.team]++; }
   hostBroadcast({ t: 'kill', k: p ? p.id : 'Z', v: v.id, h: head ? 1 : 0, score: HS.score, kk: p ? p.k : 0, vd: v.d });
   if (HS.rules.kind === 'br') { hostBrCheck(); return; }
@@ -122,15 +126,23 @@ function hostHandle(id, m) {
     if (HS.state === 'match') {
       const left = Math.max(0, HS.endAt - performance.now());
       np.alive = false;
-      Net.sendTo(id, { t: 'start', map: HS.map, rules: HS.rules, endIn: left, score: HS.score, players: rosterList(), spawns: {}, seed: HS.seed, zone: [Z.cx, Z.cz], opened: [...HS.opened] });
+      Net.sendTo(id, { t: 'start', map: HS.map, rules: HS.rules, endIn: left, score: HS.score, players: rosterList(), spawns: {}, seed: HS.seed, zone: [Z.cx, Z.cz], opened: [...HS.opened], vehs: vehicles.map(v => [Math.round(v.pos.x * 100) / 100, Math.round(v.pos.z * 100) / 100, Math.round(v.yaw * 100) / 100, HS.vehOwner.get(v.i) || null]) });
       hostBroadcast({ t: 'roster', players: rosterList() }, id);
-      hostBroadcast({ t: 'note', m: HS.rules.kind === 'br' ? `${np.name} is watching and joins next round` : `${np.name} joined ${TEAM[np.team].name}` });
+      hostBroadcast({ t: 'note', m: HS.rules.kind === 'br' ? `${np.name} is watching and joins next round` : `${np.name} joined ${TEAM[np.team % TEAM.length].name}` });
       if (HS.rules.kind !== 'br') hostRespawn(np, 1);
     } else broadcastLobby();
     return;
   }
   if (!p) return;
-  if (m.t === 'st' && Array.isArray(m.p)) { for (let i = 0; i < 6; i++) p.st[i] = +m.p[i] || 0; }
+  if (m.t === 'st' && Array.isArray(m.p)) { for (let i = 0; i < 6; i++) p.st[i] = +m.p[i] || 0; p.st[6] = m.p[6] == null ? -1 : (m.p[6] | 0); }
+  else if (m.t === 'veh' && HS.state === 'match') {
+    const i = m.v | 0, v = vehicles[i]; if (!v) return;
+    if (m.on) {
+      if (!p.alive || HS.vehOwner.has(i) || [...HS.vehOwner.values()].includes(id)) return;
+      if (Math.hypot(v.pos.x - p.st[0], v.pos.z - p.st[2]) > 5) return;
+      HS.vehOwner.set(i, id); hostBroadcast({ t: 'veh', v: i, on: 1, by: id });
+    } else if (HS.vehOwner.get(i) === id) { HS.vehOwner.delete(i); hostBroadcast({ t: 'veh', v: i, on: 0, by: id, x: +m.x || 0, z: +m.z || 0, y: +m.y || 0 }); }
+  }
   else if (m.t === 'ping') Net.sendTo(id, { t: 'pong', n: m.n });
   else if (m.t === 'shot' && HS.state === 'match' && p.alive) { hostBroadcast({ t: 'shot', id, a: m.a, b: m.b, s: m.s, q: m.q }, id); }
   else if (m.t === 'open' && HS.state === 'match' && p.alive) {
@@ -154,6 +166,7 @@ function hostHandle(id, m) {
 function hostLeave(id) {
   const p = HS.players.get(id); if (!p) return;
   HS.players.delete(id);
+  hostReleaseVehicle(p);
   hostBroadcast({ t: 'note', m: `${p.name} left` });
   if (HS.state === 'lobby') { hostAssignTeams(false); broadcastLobby(); return; }
   hostRebalance();
@@ -165,7 +178,7 @@ function hostTick(dt) {
   if (HS.state !== 'match') return;
   const now = performance.now(), br = HS.rules.kind === 'br';
   const me = HS.players.get('H');
-  if (me) { me.st = [P.pos.x, P.feet, P.pos.z, P.yaw, P.pitch, P.crouch ? 1 : 0]; }
+  if (me) { me.st = [P.pos.x, P.feet, P.pos.z, P.veh ? P.veh.yaw : P.yaw, P.pitch, P.crouch ? 1 : 0, P.veh ? P.veh.i : -1]; }
   for (const p of HS.players.values()) if (p.alive && p.hp < 100 && now - p.lastHit > 5000) p.hp = Math.min(100, p.hp + 22 * dt);
   if (br) {
     zoneTick(dt);
@@ -180,7 +193,7 @@ function hostTick(dt) {
     HS.snapT = 1 / 15;
     const r2 = v => Math.round(v * 100) / 100;
     const s = {};
-    for (const p of HS.players.values()) s[p.id] = [r2(p.st[0]), r2(p.st[1]), r2(p.st[2]), r2(p.st[3]), r2(p.st[4]), p.st[5] ? 1 : 0, p.alive ? 1 : 0, Math.round(p.hp), Math.round(p.armor)];
+    for (const p of HS.players.values()) s[p.id] = [r2(p.st[0]), r2(p.st[1]), r2(p.st[2]), r2(p.st[3]), r2(p.st[4]), p.st[5] ? 1 : 0, p.alive ? 1 : 0, Math.round(p.hp), Math.round(p.armor), p.st[6] == null ? -1 : p.st[6]];
     hostBroadcast({ t: 's', p: s, z: br ? [r2(Z.r), Z.phase, Z.state === 'shrink' ? 1 : 0, r2(Z.t)] : null });
   }
   if (now > HS.endAt) hostEndMatch();
@@ -193,7 +206,7 @@ function tagName(id) { return id === 'Z' ? 'The zone' : tagHtml(nameOf(id), team
 function clientHandle(m) {
   switch (m.t) {
     case 'welcome': MP.me = m.id; break;
-    case 'full': uiJoinStatus('That match is full (8 players).', true); Net.close(); break;
+    case 'full': uiJoinStatus('That match is full (16 players).', true); Net.close(); break;
     case 'pong': FPS.ping = Math.round(performance.now() - m.n); break;
     case 'lobby':
       MP.lobby = m; MP.map = m.map; MP.rules = cleanRules(m.rules);
@@ -205,6 +218,17 @@ function clientHandle(m) {
     case 'roster': setRoster(m.players); syncAvatars(); break;
     case 'note': feed(escHtml(m.m)); break;
     case 's': if (G.mode === 'net') applySnap(m); break;
+    case 'veh': {
+      if (G.mode !== 'net') break;
+      const v = vehicles[m.v]; if (!v) break;
+      if (m.on) {
+        if (m.by === MP.me) { if (P.alive && !P.veh) enterVehicle(v); }
+        else v.driver = m.by;
+      } else if (m.by !== MP.me) vehicleFromNet(m.v, m.x, m.z, m.y, null);
+      else if (P.veh === v && !P.alive) { P.veh = null; v.driver = null; stopEngine(); }
+      else if (P.veh !== v) v.driver = null;
+      break;
+    }
     case 'crate': { const c = crates[m.c]; if (c && G.mode === 'net') openCrate(c, m.by === MP.me ? 'me' : 'other'); break; }
     case 'shot': {
       if (G.mode !== 'net' || m.id === MP.me) break;
@@ -226,6 +250,7 @@ function clientHandle(m) {
       if (kp) kp.k = m.kk; if (vp) vp.d = m.vd;
       feed(m.k === 'Z' ? `${tagName(m.v)} lost to the zone` : `${tagName(m.k)} → ${tagName(m.v)}${m.h ? ' · headshot' : ''}`);
       if (m.v === MP.me) {
+        if (P.veh) { P.veh.driver = null; P.veh.speed = 0; P.veh = null; stopEngine(); }
         P.alive = false; P.hp = 0; G.stats.deaths++; MP.respawnAt = G.time + 3.5;
         MP.killer = m.k === 'Z' ? 'THE ZONE' : (kp ? kp.name.toUpperCase() : 'SOMEONE');
         if (MP.rules.kind === 'br') { MP.out = true; G.spec = [...MP.avatars.values()].find(a => a.alive && a.team === MP.team) || null; }
@@ -265,7 +290,7 @@ function syncAvatars() {
     const rb = buildRobot(0x6d757c, mate ? teamHex(p.team) : 0xff5a3c, { remote: p.id }, teamHex(p.team));
     world.shootables.push(...rb.parts);
     const av = { id: p.id, kind: 'avatar', team: p.team, myTeam: MP.team, rb, pos: new THREE.Vector3(), target: new THREE.Vector3(), feet: 0, yaw: 0, tyaw: 0,
-      alive: false, lastShot: -99, quiet: false, tag: null, hp: 100 };
+      alive: false, lastShot: -99, quiet: false, tag: null, hp: 100, veh: -1 };
     if (mate) { av.tag = makeNameTag(p.name, teamCss(p.team)); rb.group.add(av.tag); }
     rb.group.visible = false;
     MP.avatars.set(p.id, av);
@@ -279,6 +304,8 @@ function applySnap(m) {
     const av = MP.avatars.get(id); if (!av) continue;
     const wasAlive = av.alive;
     av.target.set(st[0], st[1], st[2]); av.tyaw = st[3]; av.crouch = st[5]; av.hp = st[7];
+    const vi = st[9] == null ? -1 : st[9];
+    if (vi !== av.veh) { if (vehicles[av.veh] && vehicles[av.veh].driver === id) vehicles[av.veh].driver = null; av.veh = vi; if (vehicles[vi] && vehicles[vi].driver !== 'me') vehicles[vi].driver = id; }
     if (st[6] && !wasAlive) { av.pos.copy(av.target); av.feet = st[1]; }
     av.alive = !!st[6]; av.rb.group.visible = av.alive;
   }
@@ -291,7 +318,14 @@ function updateAvatars(dt) {
     const ox = av.pos.x, oz = av.pos.z;
     av.pos.x = lerp(av.pos.x, av.target.x, k); av.pos.z = lerp(av.pos.z, av.target.z, k); av.feet = lerp(av.feet, av.target.y, k);
     // camera yaw looks down -z; the robot faces +z, so turn it half a circle
-    let d = (av.tyaw + Math.PI) - av.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); av.yaw += d * k;
+    const veh = av.veh >= 0 ? vehicles[av.veh] : null;
+    let d = (veh ? av.tyaw : av.tyaw + Math.PI) - av.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); av.yaw += d * k;
+    if (veh && veh.driver !== 'me') {
+      const moved = Math.hypot(av.pos.x - veh.pos.x, av.pos.z - veh.pos.z);
+      veh.pos.x = av.pos.x; veh.pos.z = av.pos.z; veh.feet = av.feet - veh.T.seat; veh.yaw = av.yaw;
+      veh.spin += moved / veh.T.wheel; for (const w of veh.wheels) w.rotation.x = veh.spin;
+      placeVehicle(veh);
+    }
     const bobY = animateRobot(av.rb, Math.hypot(av.pos.x - ox, av.pos.z - oz), dt);
     av.rb.group.position.set(av.pos.x, av.feet + bobY - (av.crouch ? .35 : 0), av.pos.z);
     av.rb.group.rotation.y = av.yaw;
@@ -305,6 +339,8 @@ function enterMatch(m) {
   if (world.id !== m.map) loadMap(m.map);
   setRoster(m.players); syncAvatars();
   PL.team = MP.team;
+  spawnVehicles(m.seed);
+  (m.vehs || []).forEach((q, i) => vehicleFromNet(i, q[0], q[1], q[2], q[3]));
   if (MP.rules.kind === 'br') {
     spawnCrates(m.seed);
     (m.opened || []).forEach(i => { if (crates[i]) openCrate(crates[i], 'other'); });
@@ -315,13 +351,13 @@ function enterMatch(m) {
   if (sp) mpRespawn(sp[0], sp[1], sp[2] || 0);
   else {
     P.alive = false; MP.respawnAt = G.time + 1; MP.out = MP.rules.kind === 'br';
-    MP.killer = MP.out ? 'WATCHING · YOU PLAY NEXT ROUND' : 'JOINING ' + TEAM[MP.team].name.toUpperCase();
+    MP.killer = MP.out ? 'WATCHING · YOU PLAY NEXT ROUND' : 'JOINING ' + TEAM[MP.team % TEAM.length].name.toUpperCase();
     P.pos.set(0, 0, 0); P.feet = groundAt(0, 0, 999) + 20;
     if (MP.out) G.spec = [...MP.avatars.values()].find(a => a.alive) || null;
   }
   for (const k in hudCache) delete hudCache[k];
   $('feed').innerHTML = '';
-  feed(`${modeLabel(MP.rules)} · ${MAPS[m.map].name}${MP.rules.kind === 'ffa' ? '' : ` · you're on ${tagHtml(TEAM[MP.team].name, MP.team)}`}`);
+  feed(`${modeLabel(MP.rules)} · ${MAPS[m.map].name}${MP.rules.kind === 'ffa' ? '' : ` · you're on ${tagHtml(TEAM[MP.team % TEAM.length].name, MP.team)}`}`);
   uiEnterGame(true);
 }
 function mpRespawn(x, z, drop) {
@@ -342,7 +378,7 @@ function showMatchEnd(m) {
   if (document.exitPointerLock && locked) document.exitPointerLock();
   const mine = MP.team, ru = cleanRules(m.rules);
   $('endeye').textContent = `${modeLabel(ru)} · ${MAPS[MP.map].name}`;
-  if (ru.kind === 'br') $('endtitle').textContent = m.win === mine ? (ru.squad > 1 ? 'Victory · your squad won' : 'Victory · last one standing') : m.win >= 0 ? `${TEAM[m.win].name} won the round` : 'Nobody made it';
+  if (ru.kind === 'br') $('endtitle').textContent = m.win === mine ? (ru.squad > 1 ? 'Victory · your squad won' : 'Victory · last one standing') : m.win >= 0 ? `${TEAM[m.win % TEAM.length].name} won the round` : 'Nobody made it';
   else if (ru.kind === 'ffa') { const me = MP.players.get(MP.me), list = [...MP.players.values()].sort((a, b) => b.k - a.k); $('endtitle').textContent = `Placed #${list.indexOf(me) + 1} · ${me ? me.k : 0} kills`; }
   else $('endtitle').textContent = m.win === -1 ? `Draw ${m.score[0]}–${m.score[1]}` : (m.win === mine ? 'Your team won ' : 'Your team lost ') + `${m.score[mine]}–${m.score[1 - mine]}`;
   const s = G.stats;
@@ -367,7 +403,7 @@ function updateNet(dt) {
   if (MP.sendT <= 0 && !Net.isHost) {
     MP.sendT = 1 / 15;
     const r2 = v => Math.round(v * 100) / 100;
-    Net.sendHost({ t: 'st', p: [r2(P.pos.x), r2(P.feet), r2(P.pos.z), r2(P.yaw), r2(P.pitch), P.crouch ? 1 : 0] });
+    Net.sendHost({ t: 'st', p: [r2(P.pos.x), r2(P.feet), r2(P.pos.z), r2(P.veh ? P.veh.yaw : P.yaw), r2(P.pitch), P.crouch ? 1 : 0, P.veh ? P.veh.i : -1] });
   }
   MP.pingT -= dt;
   if (MP.pingT <= 0 && !Net.isHost) { MP.pingT = 2; Net.sendHost({ t: 'ping', n: performance.now() }); }

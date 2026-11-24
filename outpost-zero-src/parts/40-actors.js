@@ -16,7 +16,7 @@ function resolve(pos, r, feetY, h) {
     }
   }
   for (const c of world.circles) {
-    if (feetY >= c.top - 0.02) continue;
+    if (c.off || feetY >= c.top - 0.02) continue;
     const dx = pos.x - c.x, dz = pos.z - c.z, d2 = dx * dx + dz * dz, rr = c.r + r;
     if (d2 < rr * rr && d2 > 1e-8) { const d = Math.sqrt(d2); pos.x = c.x + dx / d * rr; pos.z = c.z + dz / d * rr; }
   }
@@ -210,7 +210,7 @@ const BOT_GUNS = {
 };
 const BOT_GUN_IDS = Object.keys(BOT_GUNS);
 const GUN_TO_BOT = { vk7: 'rifle', talon: 'rifle', hammer: 'dmr', ranger: 'dmr', kestrel: 'dmr', longshot: 'dmr', hornet: 'smg', wasp: 'smg', stinger: 'smg',
-  bulwark: 'lmg', tempest: 'lmg', breacher: 'shotgun', mamba: 'shotgun', viper: 'smg', brute: 'dmr' };
+  bulwark: 'lmg', tempest: 'lmg', raptor: 'rifle', saber: 'smg', specter: 'dmr', warden: 'dmr', twin: 'shotgun', ripper: 'lmg', breacher: 'shotgun', mamba: 'shotgun', viper: 'smg', brute: 'dmr' };
 const CALLSIGNS = ['Bravo', 'Kilo', 'Ghost', 'Echo', 'Atlas', 'Rook', 'Viking', 'Nomad', 'Sierra', 'Tango', 'Hawk', 'Jinx'];
 let bots = [];
 let botSerial = 1;
