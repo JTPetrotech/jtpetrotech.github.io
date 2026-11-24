@@ -12,36 +12,108 @@ function update(dt) {
   updateHUD(dt, scoped, spdH);
 }
 
-/* ---------- input ---------- */
+/* ---------- input ----------
+   Every action has a fixed "canonical" key - the one the rest of the game
+   reads (keys.KeyW, keys.Space...) - and up to two keys or mouse buttons the
+   player has bound to it. A press is translated to the canonical key here, so
+   nothing else in the game needs to know about rebinding. */
+const ACTIONS = [
+  ['fwd', 'KeyW', 'Move forward', ['KeyW', 'ArrowUp']],
+  ['back', 'KeyS', 'Move back', ['KeyS', 'ArrowDown']],
+  ['left', 'KeyA', 'Move left', ['KeyA', 'ArrowLeft']],
+  ['right', 'KeyD', 'Move right', ['KeyD', 'ArrowRight']],
+  ['fire', 'Mouse0', 'Fire', ['Mouse0', '']],
+  ['aim', 'Mouse2', 'Aim down sights', ['Mouse2', '']],
+  ['jump', 'Space', 'Jump', ['Space', '']],
+  ['sprint', 'ShiftLeft', 'Sprint · steady scope', ['ShiftLeft', '']],
+  ['crouch', 'KeyC', 'Crouch', ['KeyC', 'ControlLeft']],
+  ['reload', 'KeyR', 'Reload', ['KeyR', '']],
+  ['use', 'KeyE', 'Use · pick up · drive', ['KeyE', 'KeyF']],
+  ['gun1', 'Digit1', 'Gun 1', ['Digit1', '']],
+  ['gun2', 'Digit2', 'Gun 2', ['Digit2', '']],
+  ['swap', 'SwapGun', 'Switch gun', ['KeyQ', '']],
+  ['board', 'Tab', 'Scoreboard', ['Tab', '']],
+];
+const ACT = Object.fromEntries(ACTIONS.map(a => [a[0], a]));
+let binds = {};
+let bindRev = {};
+function loadBinds() {
+  const saved = store.get('binds', null) || {};
+  binds = {};
+  for (const [id, , , def] of ACTIONS) {
+    const s = saved[id];
+    binds[id] = Array.isArray(s) && s.length === 2 ? s.map(c => typeof c === 'string' ? c : '') : def.slice();
+  }
+  rebuildBinds();
+}
+function rebuildBinds() {
+  bindRev = {};
+  for (const [id, canon] of ACTIONS) for (const c of binds[id]) if (c && !bindRev[c]) bindRev[c] = canon;
+}
+function saveBinds() { store.set('binds', binds); rebuildBinds(); }
+// put a key on an action's slot, taking it off whatever had it before
+function setBind(id, slot, code) {
+  if (code) for (const a in binds) for (let i = 0; i < 2; i++) if (binds[a][i] === code) binds[a][i] = '';
+  binds[id][slot] = code;
+  saveBinds();
+}
+function resetBinds() { for (const [id, , , def] of ACTIONS) binds[id] = def.slice(); saveBinds(); }
+const KEY_NAMES = { Space: 'Space', ShiftLeft: 'Shift', ShiftRight: 'R-Shift', ControlLeft: 'Ctrl', ControlRight: 'R-Ctrl', AltLeft: 'Alt', AltRight: 'R-Alt',
+  Tab: 'Tab', CapsLock: 'Caps', Enter: 'Enter', Backquote: '`', Minus: '-', Equal: '=', BracketLeft: '[', BracketRight: ']', Backslash: '\\', Semicolon: ';', Quote: "'",
+  Comma: ',', Period: '.', Slash: '/', ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→',
+  Mouse0: 'Left click', Mouse1: 'Middle click', Mouse2: 'Right click', Mouse3: 'Mouse 4', Mouse4: 'Mouse 5' };
+function keyName(code) {
+  if (!code) return '—';
+  if (KEY_NAMES[code]) return KEY_NAMES[code];
+  if (/^Key[A-Z]$/.test(code)) return code.slice(3);
+  if (/^Digit\d$/.test(code)) return code.slice(5);
+  if (/^Numpad/.test(code)) return 'Num ' + code.slice(6);
+  return code;
+}
+// the key to show for an action in prompts: its first bound key
+function bindKey(id) { const b = binds[id] || []; return keyName(b[0] || b[1]); }
+function bindKbd(id) { return `<kbd>${escHtml(bindKey(id))}</kbd>`; }
+loadBinds();
+
 function lock() { try { const p = canvas.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch (e) {} }
 document.addEventListener('pointerlockchange', () => {
   locked = document.pointerLockElement === canvas;
   if (!locked && G.playing && !G.paused && !G.over) uiPause();
 });
 const typing = t => t && ((t.tagName === 'INPUT' && t.type !== 'range' && t.type !== 'checkbox') || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA');
+let bindCapture = null; // set by the Controls screen while it waits for a key
+function pressAction(canon, down) {
+  if (canon === 'Mouse0') { mouse.l = down; if (down) triggerT = G.time; }
+  else if (canon === 'Mouse2') mouse.r = down;
+  else keys[canon] = down;
+  if (!down || !G.playing || G.paused || G.over) return;
+  if (canon === 'KeyR') startReload();
+  if (canon === 'Digit1') swapTo(0); if (canon === 'Digit2') swapTo(1);
+  if (canon === 'SwapGun') swapTo(1 - cur);
+  if (canon === 'KeyC') P.crouch = !P.crouch;
+  if (canon === 'KeyE') interact();
+}
 addEventListener('keydown', e => {
+  if (bindCapture) { e.preventDefault(); e.stopPropagation(); bindCapture(e.code); return; }
   if (typing(e.target)) return;
-  keys[e.code] = true;
-  if (!G.playing) return;
-  if (['Space', 'Tab', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault();
-  if (G.paused || G.over) return;
-  if (e.code === 'KeyR') startReload();
-  if (e.code === 'Digit1') swapTo(0); if (e.code === 'Digit2') swapTo(1);
-  if (e.code === 'KeyC' || e.code === 'ControlLeft') P.crouch = !P.crouch;
-  if (e.code === 'KeyE' || e.code === 'KeyF') interact();
+  const canon = bindRev[e.code];
+  if (G.playing && (canon || ['Space', 'Tab', 'ArrowUp', 'ArrowDown'].includes(e.code))) e.preventDefault();
+  if (canon && !(e.repeat && canon !== 'Mouse0')) pressAction(canon, true);
+  if (!G.playing || G.paused || G.over) return;
   if (e.code === 'Escape' && !locked) uiPause();
-});
-addEventListener('keyup', e => { keys[e.code] = false; });
+}, true);
+addEventListener('keyup', e => { const canon = bindRev[e.code]; if (canon) pressAction(canon, false); });
 // Listen on the whole page, not just the canvas: a click anywhere in the game fires
 addEventListener('mousedown', e => {
+  if (bindCapture) { e.preventDefault(); e.stopPropagation(); bindCapture('Mouse' + e.button); return; }
   if (!G.playing || G.paused || G.over) return;
   if (e.target && e.target.closest && e.target.closest('.ov')) return;
   if (!locked) lock();
-  if (e.button === 0) { mouse.l = true; triggerT = G.time; }
-  if (e.button === 2) mouse.r = true;
-});
-addEventListener('mouseup', e => { if (e.button === 0) mouse.l = false; if (e.button === 2) mouse.r = false; });
-addEventListener('contextmenu', e => { if (G.playing) e.preventDefault(); });
+  const canon = bindRev['Mouse' + e.button];
+  if (canon) { e.preventDefault(); pressAction(canon, true); }
+}, true);
+addEventListener('mouseup', e => { const canon = bindRev['Mouse' + e.button]; if (canon) pressAction(canon, false); });
+addEventListener('contextmenu', e => { if (G.playing || bindCapture) e.preventDefault(); });
 addEventListener('mousemove', e => {
   if (!G.playing || G.paused || !P.alive) return;
   const s = 0.0022 * sens * (camera.fov / 75), mx = e.movementX || 0, my = e.movementY || 0;

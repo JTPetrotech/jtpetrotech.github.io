@@ -120,6 +120,13 @@ ol.ffa li.me{background:rgba(255,255,255,.12)} ol.ffa .kd{color:var(--dim)}
 h1{font-family:var(--display);font-weight:400;font-size:clamp(52px,10vw,92px);line-height:.9;margin:.1em 0 .15em;letter-spacing:.03em;text-transform:uppercase}
 h2{font-family:var(--display);font-weight:400;font-size:clamp(36px,7vw,56px);line-height:.95;margin:.1em 0 .3em;text-transform:uppercase;text-wrap:balance}
 .card p{color:var(--dim);line-height:1.55;max-width:62ch;margin:0 0 16px}
+.binds{display:grid;grid-template-columns:1fr auto auto;gap:6px 10px;align-items:center}
+.binds .lbl{color:var(--text);font-size:15px}
+.binds button.bk{font-family:var(--display);font-size:16px;letter-spacing:.06em;min-width:128px;padding:6px 10px 4px;background:rgba(255,255,255,.04);color:var(--text);border:1px solid var(--line2);border-bottom-width:2px;cursor:pointer}
+.binds button.bk:hover{border-color:var(--text)}
+.binds button.bk.empty{color:var(--dim)}
+.binds button.bk.wait{border-color:var(--signal);color:var(--signal);background:rgba(255,181,71,.12)}
+@media (max-width:520px){.binds{grid-template-columns:1fr auto}.binds button.bk.alt2{display:none}.binds button.bk{min-width:96px}}
 .keys{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:7px 16px;margin:14px 0 4px;font-size:13px;color:var(--dim)}
 .keys div{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 kbd{font-family:var(--display);font-size:14px;min-width:22px;text-align:center;padding:2px 6px;border:1px solid var(--line);border-bottom-width:2px;color:var(--text);background:rgba(255,255,255,.04)}
@@ -251,17 +258,9 @@ label.set input[type=checkbox]{accent-color:var(--signal);width:16px;height:16px
       <label class="set" for="sens">Look speed <input type="range" id="sens" min="0.3" max="2.5" step="0.05" value="1"></label>
       <label class="set" for="vol">Volume <input type="range" id="vol" min="0" max="1" step="0.05" value="0.6"></label>
       <label class="set" for="fpsOn"><input type="checkbox" id="fpsOn" checked> Show FPS</label>
+      <button class="alt" id="openControls">Controls</button>
     </div>
-    <div class="keys">
-      <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Move</div>
-      <div><kbd>L-Click</kbd> Fire · <kbd>R-Click</kbd> Aim</div>
-      <div><kbd>1</kbd><kbd>2</kbd> / wheel Switch gun</div>
-      <div><kbd>R</kbd> Reload · <kbd>E</kbd> Use: crates, guns, vehicles, workbenches</div>
-      <div><kbd>Shift</kbd> Sprint · steady scope</div>
-      <div><kbd>Space</kbd> Jump · <kbd>C</kbd> Crouch</div>
-      <div><kbd>Tab</kbd> Scoreboard</div>
-      <div><kbd>Esc</kbd> Pause · change loadout</div>
-      <div><kbd>Controller</kbd> Sticks move &amp; look · LT aim · RT fire · A jump · B crouch · X reload · RB use · Y switch · L3 sprint · R3 steady · Start pause</div>
+    <div class="keys" id="keyLegend">
     </div>
     <div class="note" id="best"></div>
     <div class="note" id="touchnote" hidden>This game needs a keyboard and mouse, or a controller.</div>
@@ -334,6 +333,19 @@ label.set input[type=checkbox]{accent-color:var(--signal);width:16px;height:16px
   </div>
 </div>
 
+<div class="ov" id="controls" hidden>
+  <div class="card">
+    <div class="eyebrow">Settings</div>
+    <h2>Controls</h2>
+    <p>Click a slot, then press the key or mouse button you want there. <kbd>Esc</kbd> cancels, <kbd>Backspace</kbd> clears the slot. A key already in use moves to its new job.</p>
+    <div class="binds" id="bindList"></div>
+    <div class="row" style="margin-top:16px">
+      <button class="go" id="bindsDone">Done</button>
+      <button class="alt" id="bindsReset">Reset to defaults</button>
+    </div>
+  </div>
+</div>
+
 <div class="ov" id="pause" hidden>
   <div class="card">
     <div class="eyebrow" id="pauseEye">Paused</div>
@@ -342,6 +354,7 @@ label.set input[type=checkbox]{accent-color:var(--signal);width:16px;height:16px
     <div class="row">
       <button class="go" id="resume">Resume</button>
       <button class="alt" id="pauseLoadout">Loadout</button>
+      <button class="alt" id="pauseControls">Controls</button>
       <button class="alt" id="quitBtn">Quit to menu</button>
     </div>
     <div class="note" id="pauseNote"></div>

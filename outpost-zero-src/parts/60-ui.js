@@ -1,6 +1,6 @@
 /* Menus: main menu, loadout, join, lobby, pause, end. */
 
-const OVERLAYS = ['menu', 'joinov', 'lobby', 'loadout', 'pause', 'end'];
+const OVERLAYS = ['menu', 'joinov', 'lobby', 'loadout', 'pause', 'end', 'controls'];
 function showOnly(id) { for (const o of OVERLAYS) $(o).hidden = o !== id; }
 
 /* ---------- name, settings ---------- */
@@ -74,6 +74,56 @@ function uiPause() {
   $('pauseNote').textContent = net && Net.isHost ? 'You are hosting. Leaving ends the match for everyone.' : '';
   $('pause').hidden = false;
 }
+/* ---------- controls: rebinding keys ---------- */
+let controlsFrom = 'menu', swallowClick = 0;
+function renderLegend() {
+  const k = id => bindKbd(id);
+  $('keyLegend').innerHTML = [
+    `${k('fwd')}${k('left')}${k('back')}${k('right')} Move`,
+    `${k('fire')} Fire · ${k('aim')} Aim`,
+    `${k('gun1')}${k('gun2')} / ${k('swap')} / wheel Switch gun`,
+    `${k('reload')} Reload · ${k('use')} Use: crates, guns, vehicles, workbenches`,
+    `${k('sprint')} Sprint · steady scope`,
+    `${k('jump')} Jump · ${k('crouch')} Crouch`,
+    `${k('board')} Scoreboard`,
+    `<kbd>Esc</kbd> Pause · change loadout`,
+    `<kbd>Controller</kbd> Sticks move &amp; look · LT aim · RT fire · A jump · B crouch · X reload &amp; use · Y switch · L3 sprint · R3 steady · Start pause`,
+  ].map(h => `<div>${h}</div>`).join('');
+}
+function renderBinds(waitId, waitSlot) {
+  $('bindList').innerHTML = ACTIONS.map(([id, , label]) => `<div class="lbl">${escHtml(label)}</div>` + [0, 1].map(i => {
+    const c = binds[id][i], wait = id === waitId && i === waitSlot;
+    return `<button class="bk${c ? '' : ' empty'}${wait ? ' wait' : ''}${i ? ' alt2' : ''}" data-bind="${id}" data-slot="${i}" aria-label="${escHtml(label)}, ${i ? 'second' : 'first'} key: ${escHtml(keyName(c))}">${wait ? 'Press a key…' : escHtml(keyName(c))}</button>`;
+  }).join('')).join('');
+}
+function openControls(from) {
+  controlsFrom = from; renderBinds();
+  if (from === 'pause') $('pause').hidden = true; else showOnly(null);
+  $('controls').hidden = false;
+}
+function closeControls() {
+  bindCapture = null; $('controls').hidden = true; renderLegend();
+  if (controlsFrom === 'pause') $('pause').hidden = false; else showOnly('menu');
+}
+$('openControls').addEventListener('click', () => openControls('menu'));
+$('pauseControls').addEventListener('click', () => openControls('pause'));
+$('bindsDone').addEventListener('click', closeControls);
+$('bindsReset').addEventListener('click', () => { resetBinds(); renderBinds(); });
+$('bindList').addEventListener('click', e => {
+  const b = e.target.closest('button[data-bind]'); if (!b || performance.now() < swallowClick) return;
+  const id = b.dataset.bind, slot = +b.dataset.slot;
+  renderBinds(id, slot);
+  bindCapture = code => {
+    bindCapture = null; if (/^Mouse/.test(code)) swallowClick = performance.now() + 400;
+    if (code === 'Backspace' || code === 'Delete') setBind(id, slot, '');
+    else if (code !== 'Escape' && code) setBind(id, slot, code);
+    renderBinds();
+    const again = $('bindList').querySelector(`button[data-bind="${id}"][data-slot="${slot}"]`); if (again) again.focus();
+  };
+});
+// the click that follows a mouse button being bound must not start another wait
+addEventListener('click', e => { if (performance.now() < swallowClick && e.target.closest && e.target.closest('#bindList')) { e.preventDefault(); e.stopPropagation(); } }, true);
+renderLegend();
 $('resume').addEventListener('click', () => { initAudio(); $('pause').hidden = true; G.paused = false; lock(); canvas.focus(); });
 function toMenu(note) {
   G.playing = false; G.paused = false; G.mode = null;
@@ -277,3 +327,4 @@ loadMap(G.map);
 // Test hook for driving the game from a script; only exists with ?ozdebug in the address.
 if (/[?&]ozdebug\b/.test(location.search)) window.__oz = { world, P, G, MP, HS, bots: () => bots, crates: () => crates, groundGuns: () => groundGuns, guns: () => guns, fire: () => fire(), mpSend, interact, loadMap, FPS };
 requestAnimationFrame(frame);
+addEventListener('keydown', e => { if (!bindCapture && e.code === 'Escape' && !$('controls').hidden) closeControls(); });

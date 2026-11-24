@@ -58,17 +58,17 @@ function updateHUD(dt, scoped, spdH) {
   if (showBoard) setText('board', V.board());
   // prompts
   let prompt = '';
-  const it = findInteract(), K = padUsing ? '<kbd>X</kbd>' : '<kbd>E</kbd>';
+  const it = findInteract(), K = padUsing ? '<kbd>X</kbd>' : bindKbd('use');
   if (!P.alive) prompt = V.spec ? `SPECTATING ${escHtml(V.spec.toUpperCase())}` : '';
-  else if (P.veh) prompt = `${Math.round(Math.abs(P.veh.speed) * 3.6)} KM/H · ` + (padUsing ? '<kbd>RT</kbd> GAS · <kbd>LT</kbd> BRAKE · STICK STEERS · <kbd>X</kbd> GET OUT' : '<kbd>W</kbd><kbd>S</kbd> DRIVE · <kbd>A</kbd><kbd>D</kbd> STEER · <kbd>E</kbd> GET OUT');
-  else if (P.drop) prompt = padUsing ? 'PARACHUTING · STEER WITH THE LEFT STICK' : 'PARACHUTING · STEER WITH WASD';
+  else if (P.veh) prompt = `${Math.round(Math.abs(P.veh.speed) * 3.6)} KM/H · ` + (padUsing ? '<kbd>RT</kbd> GAS · <kbd>LT</kbd> BRAKE · STICK STEERS · <kbd>X</kbd> GET OUT' : `${bindKbd('fwd')}${bindKbd('back')} DRIVE · ${bindKbd('left')}${bindKbd('right')} STEER · ${K} GET OUT`);
+  else if (P.drop) prompt = padUsing ? 'PARACHUTING · STEER WITH THE LEFT STICK' : `PARACHUTING · STEER WITH ${escHtml(bindKey('fwd') + bindKey('left') + bindKey('back') + bindKey('right'))}`;
   else if (it && it.kind === 'veh') prompt = `${K} DRIVE ${it.v.T.name.toUpperCase()}`;
   else if (it && it.kind === 'bench') prompt = `${K} USE WORKBENCH · GUNS, SCOPES, MODS, SKINS`;
   else if (it && it.kind === 'gun') prompt = `${K} TAKE <span style="color:${TIERS[it.gg.tier].css}">${escHtml(GUNS[it.gg.id].name.toUpperCase())}</span> · DROPS ${escHtml(s.name.toUpperCase())}`;
   else if (it && it.kind === 'crate') prompt = `${K} OPEN <span style="color:${TIERS[it.c.tier].css}">${TIERS[it.c.tier].name.toUpperCase()}</span> CRATE`;
   else if (reloading) prompt = 'RELOADING';
   else if (g.magLeft === 0 && g.reserveLeft === 0) prompt = 'NO AMMO · SWITCH GUNS';
-  else if (g.magLeft <= Math.ceil(s.mag * .2)) prompt = padUsing ? 'PRESS X TO RELOAD' : 'PRESS R TO RELOAD';
+  else if (g.magLeft <= Math.ceil(s.mag * .2)) prompt = padUsing ? 'PRESS X TO RELOAD' : `PRESS ${escHtml(bindKey('reload').toUpperCase())} TO RELOAD`;
   setText('prompt', prompt);
   const rb = $('reloadbar');
   rb.hidden = !reloading;
