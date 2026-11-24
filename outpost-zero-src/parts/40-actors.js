@@ -283,6 +283,10 @@ class Bot {
     }
   }
   update(dt) {
+    const cd = Math.hypot(this.pos.x - camera.position.x, this.pos.z - camera.position.z);
+    this.far = cd > 110;
+    this.rb.group.visible = cd < scene.fog.far * 0.95;
+    if (this.far && !this.dropping) { this.lodAcc = (this.lodAcc || 0) + dt; if (this.lodAcc < 0.075) return; dt = this.lodAcc; this.lodAcc = 0; }
     const diff = DIFF[G.diff] || DIFF.normal, gun = BOT_GUNS[this.gun];
     // parachute in
     if (this.dropping) {
@@ -345,7 +349,7 @@ class Bot {
     if (this.feet <= g) { this.feet = g; this.vy = 0; }
     else if (this.vy <= 0 && this.feet - g < 0.45) { this.feet = g; this.vy = 0; }
     if (faceYaw !== null) { let d = faceYaw - this.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); this.yaw += d * Math.min(1, dt * (this.canSee ? 9 : 5)); }
-    const bob = animateRobot(this.rb, moved, dt);
+    const bob = this.far ? 0 : animateRobot(this.rb, moved, dt);
     this.rb.group.position.set(this.pos.x, this.feet + bob, this.pos.z);
     this.rb.group.rotation.y = this.yaw;
     if (this.flash > 0) { this.flash -= dt; const e = Math.max(0, this.flash / .12); this.rb.mb.emissive.setRGB(e, e, e); this.rb.md.emissive.setRGB(e * .8, e * .8, e * .8); }
@@ -379,8 +383,9 @@ class Bot {
       if (Math.random() < chance * 0.9) t.damage(dmg * 1.7, Math.random() < 0.12, this);
       else { target.x += R(-1.6, 1.6); target.y += R(-1, 1.2); target.z += R(-1.6, 1.6); }
     }
-    tracer(m, target, true);
-    sndShot(gun.snd, m.distanceTo(P.pos));
+    const heard = m.distanceTo(camera.position);
+    if (heard < 220) tracer(m, target, true);
+    if (heard < 180 || t.isPlayer) sndShot(gun.snd, heard);
   }
   damage(n, head, src) {
     if (this.dead) return false;

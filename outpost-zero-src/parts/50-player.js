@@ -1,6 +1,6 @@
 /* The player: moving, aiming, shooting, reloading, picking things up. */
 
-const G = { mode: null, rules: { kind: 'br', squad: 1, limit: 30 }, diff: store.get('diff', 'normal'), playing: false, paused: false, over: false, time: 0,
+const G = { mode: null, rules: { kind: 'br', squad: 1, limit: 30 }, diff: store.get('diff', 'normal'), crowd: clamp(+store.get('crowd', 2) || 2, 1, 3), playing: false, paused: false, over: false, time: 0,
   stats: { kills: 0, heads: 0, shots: 0, hits: 0, deaths: 0 }, map: store.get('map', 'valley'), spec: null, timers: [] };
 if (!MAPS[G.map]) G.map = 'valley';
 if (!DIFF[G.diff]) G.diff = 'normal';

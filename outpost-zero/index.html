@@ -245,6 +245,7 @@ label.set input[type=checkbox]{accent-color:var(--signal);width:16px;height:16px
     <div class="sec"><div class="k">MODE</div><div class="chips" id="modeChips"></div></div>
     <div class="sec" id="squadRow"><div class="k">SQUAD SIZE</div><div class="chips" id="squadChips"></div></div>
     <div class="sec"><div class="k">BOTS</div><div class="chips" id="diffChips"></div></div>
+    <div class="sec"><div class="k">CROWD</div><div class="chips" id="crowdChips"></div></div>
     <div class="sec"><div class="k">MAP</div><div class="chips" id="mapChips"></div></div>
     <div class="row sec">
       <button class="go" id="play">Play vs bots</button>
@@ -416,6 +417,11 @@ label.set input[type=checkbox]{accent-color:var(--signal);width:16px;height:16px
  *   PadNav.onStart = function(){ togglePause(); };   // called in play too
  *   PadNav.root    = function(){ return el('ovPause'); };  // optional fence
  *
+ * While a pad is driving a menu a small legend of the buttons sits along the
+ * bottom (PadNav.hints = false turns it off), and the page gets a 'padnav'
+ * event, detail {using: true|false}, whenever the pad takes over or hands
+ * back to the mouse.
+ *
  * Anything else that should be reachable, a clickable <div>, gets data-pad.
  * data-pad-default marks where focus lands first; data-pad-back marks the
  * control B should press.
@@ -430,7 +436,9 @@ label.set input[type=checkbox]{accent-color:var(--signal);width:16px;height:16px
     onBack: null,
     root: null,
     /* true from the first press on a controller until the mouse moves */
-    using: false
+    using: false,
+    /* the button legend along the bottom; a game with its own sets false */
+    hints: true
   };
 
   var SEL = 'a[href],button,input:not([type=hidden]),select,textarea,summary,' +
@@ -439,15 +447,33 @@ label.set input[type=checkbox]{accent-color:var(--signal);width:16px;height:16px
      be able to do by accident. */
   var BACK_RE = /^\s*(?:[←‹<]\s*)?(back|close|cancel|resume|not now)\b|^\s*[×✕✖]\s*$/i;
 
+  /* The highlight takes the colour of whatever it sits on (a card's --accent)
+     and breathes, so it reads as "you are here" rather than a browser outline.
+     The hint bar shows the buttons as the pad draws them: green A, red B. */
   var css = document.createElement('style');
   css.textContent =
-    '.pn-focus{outline:3px solid #ffd34d!important;outline-offset:3px!important;' +
-    'box-shadow:0 0 0 7px rgba(255,211,77,.28)!important;transition:outline-color .1s}' +
-    '#pn-toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:2147483647;' +
-    'background:rgba(10,12,16,.92);color:#fff;font:600 14px/1.35 system-ui,sans-serif;' +
-    'padding:10px 16px;border-radius:10px;border:1px solid rgba(255,211,77,.5);' +
-    'pointer-events:none;opacity:0;transition:opacity .25s;max-width:90vw;text-align:center}' +
-    '#pn-toast.on{opacity:1}';
+    '.pn-focus{--pn-c:var(--accent,#ffd34d);outline:2px solid var(--pn-c)!important;outline-offset:4px!important;' +
+    'animation:pn-pulse 1.6s ease-in-out infinite!important;position:relative;z-index:1;scroll-margin:24px 0 84px}' +
+    '@keyframes pn-pulse{0%,100%{box-shadow:0 0 0 3px rgba(0,0,0,.55),0 0 14px 2px var(--pn-c)}' +
+    '50%{box-shadow:0 0 0 3px rgba(0,0,0,.55),0 0 26px 7px var(--pn-c)}}' +
+    '@media (prefers-reduced-motion:reduce){.pn-focus{animation:none!important;box-shadow:0 0 0 3px rgba(0,0,0,.55),0 0 18px 4px var(--pn-c)!important}}' +
+    '.pn-bar{position:fixed;left:50%;bottom:max(16px,env(safe-area-inset-bottom));z-index:2147483646;' +
+    'display:flex;align-items:center;gap:16px;padding:8px 16px 8px 10px;border-radius:999px;' +
+    'background:rgba(8,11,16,.86);border:1px solid rgba(255,255,255,.12);' +
+    'box-shadow:0 10px 30px rgba(0,0,0,.5);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);' +
+    'color:#e9f0f8;font:700 13px/1 system-ui,-apple-system,"Segoe UI",sans-serif;letter-spacing:.02em;' +
+    'pointer-events:none;opacity:0;transform:translate(-50%,14px);transition:opacity .25s,transform .25s;' +
+    'white-space:nowrap;max-width:calc(100vw - 24px)}' +
+    '.pn-bar.on{opacity:1;transform:translate(-50%,0)}' +
+    '.pn-bar span{display:inline-flex;align-items:center;gap:7px}' +
+    '.pn-g{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;' +
+    'font:800 12px/1 system-ui,sans-serif;color:#fff;box-shadow:inset 0 -2px 0 rgba(0,0,0,.3)}' +
+    '.pn-a{background:#2fb35a}.pn-b{background:#e0453a}.pn-s{background:#3b4656;border-radius:7px;width:auto;padding:0 6px;font-size:9px;letter-spacing:.06em}' +
+    '.pn-d{position:relative;width:20px;height:20px;background:none;box-shadow:none}' +
+    '.pn-d:before,.pn-d:after{content:"";position:absolute;background:#c9d4e2;border-radius:2px}' +
+    '.pn-d:before{left:7px;top:0;width:6px;height:20px}.pn-d:after{top:7px;left:0;width:20px;height:6px}' +
+    '.pn-bar.toast{border-color:rgba(47,179,90,.7)}' +
+    '@media (max-width:420px){.pn-bar{gap:11px;font-size:12px}.pn-bar .pn-opt{display:none}}';
   (document.head || document.documentElement).appendChild(css);
 
   /* ------------------------------------------------------------ finding -- */
@@ -666,13 +692,42 @@ label.set input[type=checkbox]{accent-color:var(--signal);width:16px;height:16px
   var toast = null, toastT = 0;
   function say(msg){
     if (!document.body) return;
-    if (!toast){ toast = document.createElement('div'); toast.id = 'pn-toast'; document.body.appendChild(toast); }
+    if (!toast){
+      toast = document.createElement('div'); toast.className = 'pn-bar toast';
+      toast.style.bottom = 'calc(max(16px,env(safe-area-inset-bottom)) + 50px)';
+      document.body.appendChild(toast);
+    }
     toast.textContent = msg;
     toast.classList.add('on');
     clearTimeout(toastT);
-    toastT = setTimeout(function(){ toast.classList.remove('on'); }, 3800);
+    toastT = setTimeout(function(){ toast.classList.remove('on'); }, 3200);
   }
   var greeted = false;
+
+  /* The legend along the bottom while a pad is driving a menu. Built from
+     fixed strings only. A game that wants its own says PadNav.hints = false. */
+  var bar = null, barOn = false;
+  function legend(show){
+    if (show === barOn || !document.body) return;
+    barOn = show;
+    if (!bar){
+      bar = document.createElement('div'); bar.className = 'pn-bar'; bar.setAttribute('aria-hidden', 'true');
+      document.body.appendChild(bar);
+    }
+    if (show){
+      bar.innerHTML =
+        '<span><i class="pn-g pn-d"></i>Move</span>' +
+        '<span><i class="pn-g pn-a">A</i>Select</span>' +
+        '<span><i class="pn-g pn-b">B</i>Back</span>' +
+        (PN.onStart ? '<span class="pn-opt"><i class="pn-g pn-s">START</i>Pause</span>' : '');
+    }
+    bar.classList.toggle('on', show);
+  }
+  function setUsing(v){
+    if (PN.using === v) return;
+    PN.using = v;
+    try { dispatchEvent(new CustomEvent('padnav', { detail: { using: v } })); } catch (e) {}
+  }
 
   /* ------------------------------------------------------------- polling -- */
   /* The Gamepad API has no button events, so every pad is read each frame. */
@@ -710,9 +765,10 @@ label.set input[type=checkbox]{accent-color:var(--signal);width:16px;height:16px
     var anyEdge = false; for (var e in edges){ anyEdge = true; break; }
     if (anyEdge && !greeted && act){
       greeted = true;
-      say('Controller ready — D-pad to move, A to select, B to go back');
+      say('Controller ready');
     }
-    if (anyEdge) PN.using = true;
+    if (anyEdge) setUsing(true);
+    legend(PN.using && act && PN.hints !== false);
 
     if (edges[9]){
       if (PN.onStart) PN.onStart();
@@ -726,7 +782,7 @@ label.set input[type=checkbox]{accent-color:var(--signal);width:16px;height:16px
     /* one diagonal at a time: whichever axis is pressed is the move */
     var dir = dirY ? 'y' + dirY : dirX ? 'x' + dirX : null;
     if (dir){
-      if (dir !== held){ held = dir; repeatAt = now + 380; PN.using = true; go(dir); }
+      if (dir !== held){ held = dir; repeatAt = now + 380; setUsing(true); go(dir); }
       else if (now >= repeatAt){ repeatAt = now + 110; go(dir); }
     } else held = null;
 
@@ -749,7 +805,8 @@ label.set input[type=checkbox]{accent-color:var(--signal);width:16px;height:16px
   addEventListener('mousemove', function(ev){
     if (Math.abs(ev.clientX - mx) + Math.abs(ev.clientY - my) < 6) return;
     mx = ev.clientX; my = ev.clientY;
-    PN.using = false;
+    setUsing(false);
+    legend(false);
     if (cur){ cur.classList.remove('pn-focus'); cur = null; }
   }, { passive: true });
 
@@ -2175,6 +2232,10 @@ class Bot {
     }
   }
   update(dt) {
+    const cd = Math.hypot(this.pos.x - camera.position.x, this.pos.z - camera.position.z);
+    this.far = cd > 110;
+    this.rb.group.visible = cd < scene.fog.far * 0.95;
+    if (this.far && !this.dropping) { this.lodAcc = (this.lodAcc || 0) + dt; if (this.lodAcc < 0.075) return; dt = this.lodAcc; this.lodAcc = 0; }
     const diff = DIFF[G.diff] || DIFF.normal, gun = BOT_GUNS[this.gun];
     // parachute in
     if (this.dropping) {
@@ -2237,7 +2298,7 @@ class Bot {
     if (this.feet <= g) { this.feet = g; this.vy = 0; }
     else if (this.vy <= 0 && this.feet - g < 0.45) { this.feet = g; this.vy = 0; }
     if (faceYaw !== null) { let d = faceYaw - this.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); this.yaw += d * Math.min(1, dt * (this.canSee ? 9 : 5)); }
-    const bob = animateRobot(this.rb, moved, dt);
+    const bob = this.far ? 0 : animateRobot(this.rb, moved, dt);
     this.rb.group.position.set(this.pos.x, this.feet + bob, this.pos.z);
     this.rb.group.rotation.y = this.yaw;
     if (this.flash > 0) { this.flash -= dt; const e = Math.max(0, this.flash / .12); this.rb.mb.emissive.setRGB(e, e, e); this.rb.md.emissive.setRGB(e * .8, e * .8, e * .8); }
@@ -2271,8 +2332,9 @@ class Bot {
       if (Math.random() < chance * 0.9) t.damage(dmg * 1.7, Math.random() < 0.12, this);
       else { target.x += R(-1.6, 1.6); target.y += R(-1, 1.2); target.z += R(-1.6, 1.6); }
     }
-    tracer(m, target, true);
-    sndShot(gun.snd, m.distanceTo(P.pos));
+    const heard = m.distanceTo(camera.position);
+    if (heard < 220) tracer(m, target, true);
+    if (heard < 180 || t.isPlayer) sndShot(gun.snd, heard);
   }
   damage(n, head, src) {
     if (this.dead) return false;
@@ -2648,7 +2710,7 @@ const Net = {
 /* ---- 50-player.js ---- */
 /* The player: moving, aiming, shooting, reloading, picking things up. */
 
-const G = { mode: null, rules: { kind: 'br', squad: 1, limit: 30 }, diff: store.get('diff', 'normal'), playing: false, paused: false, over: false, time: 0,
+const G = { mode: null, rules: { kind: 'br', squad: 1, limit: 30 }, diff: store.get('diff', 'normal'), crowd: clamp(+store.get('crowd', 2) || 2, 1, 3), playing: false, paused: false, over: false, time: 0,
   stats: { kills: 0, heads: 0, shots: 0, hits: 0, deaths: 0 }, map: store.get('map', 'valley'), spec: null, timers: [] };
 if (!MAPS[G.map]) G.map = 'valley';
 if (!DIFF[G.diff]) G.diff = 'normal';
@@ -3125,7 +3187,7 @@ function startOffline() {
   const H = world.half;
   spawnVehicles((Math.random() * 4e9) >>> 0);
   if (ru.kind === 'br') {
-    const N = ru.squad, base = clamp(Math.round(10 + H / 200 * 22), 10, 40), T = Math.max(2, Math.floor(base / N));
+    const N = ru.squad, base = clamp(Math.round((10 + H / 200 * 22) * G.crowd), 10, clamp(Math.round(H * 0.4), 16, 120)), T = Math.max(2, Math.floor(base / N));
     OFF.teams = T;
     zoneSetup(R(-0.17, 0.17) * H, R(-0.17, 0.17) * H);
     const a0 = R(0, 6.28);
@@ -3145,14 +3207,14 @@ function startOffline() {
   } else if (ru.kind === 'tdm') {
     OFF.score = [0, 0]; OFF.endAt = 8 * 60;
     const pts = world.spawns;
-    const per = clamp(Math.round(4 + H / 200 * 3), 4, 10);
+    const per = clamp(Math.round((4 + H / 200 * 3) * G.crowd), 4, clamp(Math.round(H / 8), 6, 32));
     const [px, pz] = pts[0][0]; resetPlayer(px, pz, 0); P.yaw = Math.atan2(px, pz);
     for (let i = 1; i < per; i++) { const p = pts[0][i % pts[0].length]; bots.push(new Bot(p[0] + R(-2, 2), p[1] + R(-2, 2), 0, { ally: true, name: CALLSIGNS[(i - 1) % CALLSIGNS.length] })); }
     for (let i = 0; i < per; i++) { const p = pts[1][i % pts[1].length]; bots.push(new Bot(p[0] + R(-2, 2), p[1] + R(-2, 2), 1)); }
     feed(`Team deathmatch · ${MAPS[world.id].name} · first to ${ru.limit}`);
   } else {
     OFF.score = []; OFF.endAt = 8 * 60;
-    const n = clamp(Math.round(5 + H / 200 * 6), 5, 16);
+    const n = clamp(Math.round((5 + H / 200 * 6) * G.crowd), 5, clamp(Math.round(H / 4), 10, 60));
     const [px, pz] = randomClear(0, 0, H * 0.8, 1.2); resetPlayer(px, pz, 0);
     for (let i = 1; i <= n; i++) { const [x, z] = farSpawn(i); bots.push(new Bot(x, z, i)); }
     feed(`Free-for-all · ${MAPS[world.id].name} · first to ${ru.limit}`);
@@ -3934,6 +3996,7 @@ function chipRow(items, sel, attr, disabled) {
 }
 const MODE_ITEMS = [['br', 'Battle royale', 'Drop in, loot crates, last squad standing'], ['tdm', 'Team deathmatch', 'Two teams, respawns, first to the kill limit'], ['ffa', 'Free-for-all', 'Everyone for themselves']];
 const SQUAD_ITEMS = [[1, 'Solos', 'Just you'], [2, 'Duos', 'Squads of 2'], [3, 'Trios', 'Squads of 3'], [4, 'Squads', 'Squads of 4']];
+const CROWD_ITEMS = [[1, 'Normal', 'The usual number'], [2, 'Lots', 'About twice as many'], [3, 'Swarm', 'Three times, up to 120']];
 const DIFF_ITEMS = Object.entries(DIFF).map(([k, d]) => [k, d.name, k === 'easy' ? 'Slow to react' : k === 'normal' ? 'A fair fight' : 'Sharp and fast']);
 function mapChipsHtml(sel, disabled) { return chipRow(MAP_IDS.map(id => [id, MAPS[id].name, MAPS[id].blurb]), sel, 'map', disabled); }
 function renderMenu() {
@@ -3941,11 +4004,13 @@ function renderMenu() {
   $('squadChips').innerHTML = chipRow(SQUAD_ITEMS, offRules.squad, 'squad');
   $('squadRow').hidden = offRules.kind !== 'br';
   $('diffChips').innerHTML = chipRow(DIFF_ITEMS, G.diff, 'diff');
+  $('crowdChips').innerHTML = chipRow(CROWD_ITEMS, G.crowd, 'crowd');
   $('mapChips').innerHTML = mapChipsHtml(G.map, false);
   $('play').textContent = offRules.kind === 'br' ? `Play ${SQUAD_NAMES[offRules.squad].toLowerCase()} vs bots` : `Play ${MODE_NAMES[offRules.kind].toLowerCase()} vs bots`;
 }
 $('modeChips').addEventListener('click', e => { const b = e.target.closest('button[data-mode]'); if (!b) return; offRules.kind = b.dataset.mode; store.set('offKind', offRules.kind); renderMenu(); });
 $('squadChips').addEventListener('click', e => { const b = e.target.closest('button[data-squad]'); if (!b) return; offRules.squad = +b.dataset.squad; store.set('offSquad', offRules.squad); renderMenu(); });
+$('crowdChips').addEventListener('click', e => { const b = e.target.closest('button[data-crowd]'); if (!b) return; G.crowd = +b.dataset.crowd; store.set('crowd', G.crowd); renderMenu(); });
 $('diffChips').addEventListener('click', e => { const b = e.target.closest('button[data-diff]'); if (!b) return; G.diff = b.dataset.diff; store.set('diff', G.diff); renderMenu(); });
 $('mapChips').addEventListener('click', e => {
   const b = e.target.closest('button[data-map]'); if (!b) return;

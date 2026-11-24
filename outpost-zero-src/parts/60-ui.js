@@ -24,6 +24,7 @@ function chipRow(items, sel, attr, disabled) {
 }
 const MODE_ITEMS = [['br', 'Battle royale', 'Drop in, loot crates, last squad standing'], ['tdm', 'Team deathmatch', 'Two teams, respawns, first to the kill limit'], ['ffa', 'Free-for-all', 'Everyone for themselves']];
 const SQUAD_ITEMS = [[1, 'Solos', 'Just you'], [2, 'Duos', 'Squads of 2'], [3, 'Trios', 'Squads of 3'], [4, 'Squads', 'Squads of 4']];
+const CROWD_ITEMS = [[1, 'Normal', 'The usual number'], [2, 'Lots', 'About twice as many'], [3, 'Swarm', 'Three times, up to 120']];
 const DIFF_ITEMS = Object.entries(DIFF).map(([k, d]) => [k, d.name, k === 'easy' ? 'Slow to react' : k === 'normal' ? 'A fair fight' : 'Sharp and fast']);
 function mapChipsHtml(sel, disabled) { return chipRow(MAP_IDS.map(id => [id, MAPS[id].name, MAPS[id].blurb]), sel, 'map', disabled); }
 function renderMenu() {
@@ -31,11 +32,13 @@ function renderMenu() {
   $('squadChips').innerHTML = chipRow(SQUAD_ITEMS, offRules.squad, 'squad');
   $('squadRow').hidden = offRules.kind !== 'br';
   $('diffChips').innerHTML = chipRow(DIFF_ITEMS, G.diff, 'diff');
+  $('crowdChips').innerHTML = chipRow(CROWD_ITEMS, G.crowd, 'crowd');
   $('mapChips').innerHTML = mapChipsHtml(G.map, false);
   $('play').textContent = offRules.kind === 'br' ? `Play ${SQUAD_NAMES[offRules.squad].toLowerCase()} vs bots` : `Play ${MODE_NAMES[offRules.kind].toLowerCase()} vs bots`;
 }
 $('modeChips').addEventListener('click', e => { const b = e.target.closest('button[data-mode]'); if (!b) return; offRules.kind = b.dataset.mode; store.set('offKind', offRules.kind); renderMenu(); });
 $('squadChips').addEventListener('click', e => { const b = e.target.closest('button[data-squad]'); if (!b) return; offRules.squad = +b.dataset.squad; store.set('offSquad', offRules.squad); renderMenu(); });
+$('crowdChips').addEventListener('click', e => { const b = e.target.closest('button[data-crowd]'); if (!b) return; G.crowd = +b.dataset.crowd; store.set('crowd', G.crowd); renderMenu(); });
 $('diffChips').addEventListener('click', e => { const b = e.target.closest('button[data-diff]'); if (!b) return; G.diff = b.dataset.diff; store.set('diff', G.diff); renderMenu(); });
 $('mapChips').addEventListener('click', e => {
   const b = e.target.closest('button[data-map]'); if (!b) return;
