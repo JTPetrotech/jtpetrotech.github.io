@@ -87,7 +87,8 @@ function renderLegend() {
     `${k('jump')} Jump · ${k('crouch')} Crouch`,
     `${k('board')} Scoreboard`,
     `<kbd>Esc</kbd> Pause · change loadout`,
-    `<kbd>Controller</kbd> Sticks move &amp; look · LT aim · RT fire · A jump · B crouch · X reload &amp; use · Y switch · L3 sprint · R3 steady · Start pause`,
+    `${k('plate')} Armor plate · double-tap ${k('sprint')} tactical sprint · ${k('crouch')} while sprinting slides`,
+    `<kbd>Controller</kbd> ${['fire', 'aim', 'jump', 'crouch', 'use', 'swap', 'plate'].map(id => escHtml(padLabel(id)) + ' ' + PAD_ACTS.find(a => a[0] === id)[1].split(' ·')[0].toLowerCase()).join(' · ')} · Start pause`,
   ].map(h => `<div>${h}</div>`).join('');
 }
 function renderBinds(waitId, waitSlot) {
@@ -96,19 +97,39 @@ function renderBinds(waitId, waitSlot) {
     return `<button class="bk${c ? '' : ' empty'}${wait ? ' wait' : ''}${i ? ' alt2' : ''}" data-bind="${id}" data-slot="${i}" aria-label="${escHtml(label)}, ${i ? 'second' : 'first'} key: ${escHtml(keyName(c))}">${wait ? 'Press a key…' : escHtml(keyName(c))}</button>`;
   }).join('')).join('');
 }
+function renderPadBinds(waitId, waitSlot) {
+  $('padTypeChips').innerHTML = chipRow(PAD_TYPES.map(([k, n]) => [k, n, k === 'auto' ? (padSeen ? 'Looks like ' + PAD_TYPES.find(t => t[0] === padTypeOf(padSeen) || false)[1] : 'From the controller') : 'Its button names']), padTypeSet, 'padtype');
+  $('padBindList').innerHTML = PAD_ACTS.map(([id, label]) => `<div class="lbl">${escHtml(label)}</div>` + [0, 1].map(i => {
+    const c = padBinds[id][i], wait = id === waitId && i === waitSlot;
+    return `<button class="bk${c ? '' : ' empty'}${wait ? ' wait' : ''}${i ? ' alt2' : ''}" data-pbind="${id}" data-slot="${i}" aria-label="${escHtml(label)}, ${i ? 'second' : 'first'} button: ${escHtml(padCodeName(c))}">${wait ? 'Press a button…' : escHtml(padCodeName(c))}</button>`;
+  }).join('')).join('');
+}
+$('padTypeChips').addEventListener('click', e => { const b = e.target.closest('button[data-padtype]'); if (!b) return; padTypeSet = b.dataset.padtype; store.set('padType', padTypeSet); renderPadBinds(); renderLegend(); });
+$('padReset').addEventListener('click', () => { resetPadBinds(); renderPadBinds(); });
+$('padBindList').addEventListener('click', e => {
+  const b = e.target.closest('button[data-pbind]'); if (!b) return;
+  const id = b.dataset.pbind, slot = +b.dataset.slot;
+  renderPadBinds(id, slot);
+  padCapture = { armed: false, t0: performance.now(), done: code => {
+    if (code) setPadBind(id, slot, code);
+    renderPadBinds();
+    const again = $('padBindList').querySelector(`button[data-pbind="${id}"][data-slot="${slot}"]`); if (again) { again.focus(); if (window.PadNav && PadNav.reset) setTimeout(() => again.focus(), 80); }
+  } };
+});
 function openControls(from) {
-  controlsFrom = from; renderBinds();
+  controlsFrom = from; renderBinds(); renderPadBinds();
   if (from === 'pause') $('pause').hidden = true; else showOnly(null);
   $('controls').hidden = false;
 }
 function closeControls() {
-  bindCapture = null; $('controls').hidden = true; renderLegend();
+  bindCapture = null; padCapture = null; $('controls').hidden = true; renderLegend();
   if (controlsFrom === 'pause') $('pause').hidden = false; else showOnly('menu');
 }
 $('openControls').addEventListener('click', () => openControls('menu'));
 $('pauseControls').addEventListener('click', () => openControls('pause'));
 $('bindsDone').addEventListener('click', closeControls);
 $('bindsReset').addEventListener('click', () => { resetBinds(); renderBinds(); });
+function renderBreath() { const b = $('breath'); if (b && b.firstChild) b.firstChild.textContent = `HOLD ${bindKey('sprint').toUpperCase()} TO STEADY`; }
 $('bindList').addEventListener('click', e => {
   const b = e.target.closest('button[data-bind]'); if (!b || performance.now() < swallowClick) return;
   const id = b.dataset.bind, slot = +b.dataset.slot;
@@ -123,7 +144,7 @@ $('bindList').addEventListener('click', e => {
 });
 // the click that follows a mouse button being bound must not start another wait
 addEventListener('click', e => { if (performance.now() < swallowClick && e.target.closest && e.target.closest('#bindList')) { e.preventDefault(); e.stopPropagation(); } }, true);
-renderLegend();
+renderLegend(); renderBreath();
 $('resume').addEventListener('click', () => { initAudio(); $('pause').hidden = true; G.paused = false; lock(); canvas.focus(); });
 function toMenu(note) {
   G.playing = false; G.paused = false; G.mode = null;
@@ -327,4 +348,4 @@ loadMap(G.map);
 // Test hook for driving the game from a script; only exists with ?ozdebug in the address.
 if (/[?&]ozdebug\b/.test(location.search)) window.__oz = { world, P, G, MP, HS, bots: () => bots, crates: () => crates, groundGuns: () => groundGuns, guns: () => guns, fire: () => fire(), mpSend, interact, loadMap, FPS };
 requestAnimationFrame(frame);
-addEventListener('keydown', e => { if (!bindCapture && e.code === 'Escape' && !$('controls').hidden) closeControls(); });
+addEventListener('keydown', e => { if (bindCapture || e.code !== 'Escape' || $('controls').hidden) return; if (padCapture) { padCapture = null; renderPadBinds(); } else closeControls(); });

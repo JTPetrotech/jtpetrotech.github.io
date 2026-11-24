@@ -25,12 +25,13 @@ const ACTIONS = [
   ['fire', 'Mouse0', 'Fire', ['Mouse0', '']],
   ['aim', 'Mouse2', 'Aim down sights', ['Mouse2', '']],
   ['jump', 'Space', 'Jump', ['Space', '']],
-  ['sprint', 'ShiftLeft', 'Sprint · steady scope', ['ShiftLeft', '']],
-  ['crouch', 'KeyC', 'Crouch', ['KeyC', 'ControlLeft']],
+  ['sprint', 'ShiftLeft', 'Sprint (tap twice: tactical) · steady scope', ['ShiftLeft', '']],
+  ['crouch', 'KeyC', 'Crouch · slide while sprinting', ['KeyC', 'ControlLeft']],
   ['reload', 'KeyR', 'Reload', ['KeyR', '']],
   ['use', 'KeyE', 'Use · pick up · drive', ['KeyE', 'KeyF']],
   ['gun1', 'Digit1', 'Gun 1', ['Digit1', '']],
   ['gun2', 'Digit2', 'Gun 2', ['Digit2', '']],
+  ['plate', 'Digit4', 'Armor plate (hold for more)', ['Digit4', '']],
   ['swap', 'SwapGun', 'Switch gun', ['KeyQ', '']],
   ['board', 'Tab', 'Scoreboard', ['Tab', '']],
 ];
@@ -90,7 +91,8 @@ function pressAction(canon, down) {
   if (canon === 'KeyR') startReload();
   if (canon === 'Digit1') swapTo(0); if (canon === 'Digit2') swapTo(1);
   if (canon === 'SwapGun') swapTo(1 - cur);
-  if (canon === 'KeyC') P.crouch = !P.crouch;
+  if (canon === 'KeyC') crouchPress();
+  if (canon === 'ShiftLeft') sprintTap();
   if (canon === 'KeyE') interact();
 }
 addEventListener('keydown', e => {

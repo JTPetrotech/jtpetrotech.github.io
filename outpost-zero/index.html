@@ -68,6 +68,8 @@ html,body{height:100%;margin:0;overflow:hidden;background:var(--ink);color:var(-
 #slots{display:flex;gap:6px;justify-content:flex-end;margin-top:8px}
 #slots span{font-size:13px;padding:3px 8px;border:1px solid var(--line);color:var(--dim);background:var(--panel);letter-spacing:.08em}
 #slots span.on{color:var(--ink);background:var(--text);border-color:var(--text)}
+#compass{top:calc(max(16px,env(safe-area-inset-top,0px)) + 58px);left:50%;transform:translateX(-50%);width:min(440px,calc(100vw - 420px));min-width:220px;height:34px}
+#arbar{position:relative}#arbar::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent calc(33.3% - 1px),#0c1013 calc(33.3% - 1px),#0c1013 calc(33.3% + 1px),transparent calc(33.3% + 1px),transparent calc(66.6% - 1px),#0c1013 calc(66.6% - 1px),#0c1013 calc(66.6% + 1px),transparent calc(66.6% + 1px))}
 #topc{top:max(16px,env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);display:flex;gap:10px;align-items:stretch}
 .chip{background:var(--panel);border:1px solid var(--line);padding:5px 12px;text-align:center;min-width:72px}
 .chip .k{font-size:12px;letter-spacing:.16em;color:var(--dim)}
@@ -218,6 +220,7 @@ label.set input[type=checkbox]{accent-color:var(--signal);width:16px;height:16px
   <div id="hit" class="hud"></div>
   <div id="mapwrap" class="hud"><canvas id="minimap" width="340" height="340"></canvas></div>
   <div id="topc" class="hud"></div>
+  <canvas id="compass" class="hud" width="440" height="34" hidden></canvas>
   <div id="feed" class="hud"></div>
   <div id="prompt" class="hud"></div>
   <div id="reloadbar" class="hud" hidden><i></i></div>
@@ -345,8 +348,16 @@ label.set input[type=checkbox]{accent-color:var(--signal);width:16px;height:16px
     <p>Click a slot, then press the key or mouse button you want there. <kbd>Esc</kbd> cancels, <kbd>Backspace</kbd> clears the slot. A key already in use moves to its new job.</p>
     <div class="binds" id="bindList"></div>
     <div class="row" style="margin-top:16px">
+      <button class="alt" id="bindsReset">Reset keyboard</button>
+    </div>
+    <div class="eyebrow" style="margin-top:26px">Controller</div>
+    <p style="margin-top:8px">Pick your controller so the game shows its button names. To move an action, choose a slot, then press the controller button you want. <kbd>Start</kbd> cancels.</p>
+    <div class="chips" id="padTypeChips"></div>
+    <div class="note" id="padInfo2" hidden></div>
+    <div class="binds" id="padBindList" style="margin-top:12px"></div>
+    <div class="row" style="margin-top:16px">
       <button class="go" id="bindsDone">Done</button>
-      <button class="alt" id="bindsReset">Reset to defaults</button>
+      <button class="alt" id="padReset">Reset controller</button>
     </div>
   </div>
 </div>
@@ -2779,9 +2790,10 @@ function openCrate(c, who) {
   if (Math.hypot(c.x - P.pos.x, c.z - P.pos.z) < 40) sndCrate();
   if (who === 'me') {
     guns.forEach(g => g.reserveLeft = Math.min(g.s.reserve * 2, g.reserveLeft + g.s.mag * 2));
-    if (G.mode === 'bots') P.armor = Math.min(100, P.armor + c.armor);
+    const br = G.rules && G.rules.kind === 'br', np = Math.max(0, Math.min(MAX_PLATES - P.plates, c.tier >= 1 ? 3 : 2));
+    if (br) P.plates += np;
     const T = TIERS[c.tier];
-    toast(`+ AMMO · + ARMOR · ${T.name.toUpperCase()} ${GUNS[c.loot.id].name.toUpperCase()} INSIDE`);
+    toast(`+ AMMO${br && np > 0 ? ` · + ${np} PLATE${np > 1 ? 'S' : ''}` : ''} · ${T.name.toUpperCase()} ${GUNS[c.loot.id].name.toUpperCase()} INSIDE`);
     dropGun(c.loot, c.x + Math.sin(c.g.rotation.y) * .1, c.y + .9, c.z, true);
   } else if (who && who.kind === 'bot') {
     who.armor = Math.min(100, who.armor + c.armor);
@@ -2818,7 +2830,7 @@ function updateLoot(dt) {
     L.g.position.y = L.y + .55 + Math.sin(L.t * 2.2) * .1; L.g.rotation.y += dt * 1.4;
     if (P.alive && Math.hypot(P.pos.x - L.x, P.pos.z - L.z) < 1.5 && Math.abs(P.feet - L.y) < 2) {
       if (L.type === 'ammo') { guns.forEach(g => g.reserveLeft = Math.min(g.s.reserve * 2, g.reserveLeft + g.s.mag)); toast('+ AMMO'); }
-      else { if (P.armor >= 100) continue; P.armor = Math.min(100, P.armor + 50); toast('+ ARMOR PLATE'); }
+      else { if (P.plates >= MAX_PLATES) continue; P.plates++; toast('+ ARMOR PLATE'); }
       beep(660, .08, .1, 'sine'); beep(990, .1, .08, 'sine', .07);
       scene.remove(L.g); loot.splice(i, 1);
     }
@@ -3085,7 +3097,7 @@ const G = { mode: null, rules: { kind: 'br', squad: 1, limit: 30 }, diff: store.
 if (!MAPS[G.map]) G.map = 'valley';
 if (!DIFF[G.diff]) G.diff = 'normal';
 const P = { pos: new THREE.Vector3(), vel: new THREE.Vector3(), vy: 0, feet: 0, yaw: 0, pitch: 0, onGround: false, crouch: false, eye: 1.65,
-  hp: 100, armor: 0, lastHurt: -99, alive: true, sprint: false, breath: 1, drop: false, veh: null };
+  hp: 100, armor: 0, plates: 2, plating: false, plateT: 0, tac: false, tacReq: false, tacT: 0, slideT: 0, slideV: 0, lastHurt: -99, alive: true, sprint: false, breath: 1, drop: false, veh: null };
 let guns = [];
 let cur = 0, adsT = 0, swapT = 1, kick = 0, bob = 0, nextShot = 0, reloading = false, reloadEnd = 0, flashT = 0, triggerT = -9, locked = false;
 let burstLeft = 0, recoilAcc = 0, lastShotT = -9, sprintOut = 0, stepAcc = 0, landDip = 0, lookDX = 0, lookDY = 0, swayX = 0, swayY = 0, airVy = 0;
@@ -3135,7 +3147,7 @@ let vignT = 0;
 function hurt(n, from, src) {
   if (!P.alive || G.mode !== 'bots') return;
   P.lastHurt = G.time;
-  if (P.armor > 0 && src !== 'zone') { const ab = Math.min(P.armor, n * 0.7); P.armor -= ab; n -= ab; }
+  if (P.armor > 0 && src !== 'zone') { const was = P.armor, ab = Math.min(P.armor, n); P.armor -= ab; n -= ab; if (Math.ceil(P.armor / 50) < Math.ceil(was / 50)) plateBreak(); }
   P.hp -= n; padRumble(.6, .3, 120);
   if (from) { vignT = .35; dmgArc(from); }
   if (P.hp <= 0) { P.hp = 0; P.alive = false; onPlayerKilled(src); }
@@ -3151,8 +3163,25 @@ function startReload() {
   reloading = true; reloadEnd = G.time + g.s.reload; burstLeft = 0;
   sndClick(700); sndClick(500, g.s.reload * 0.55); sndClick(1100, g.s.reload * 0.92);
 }
+/* ---------- Warzone-style armor: three plates of 50, put in one at a time ---------- */
+const PLATE_TIME = 1.1, MAX_PLATES = 5, MAX_ARMOR = 150;
+let padPlateHeld = false, lastSprintTap = -9;
+function plateBreak() { if (!AC) return; noiseHit(AC.currentTime, 2400, .35, .12, 'highpass'); beep(180, .09, .1, 'sawtooth'); padRumble(.8, .4, 140); }
+function sndPlate(done) { if (!AC) return; if (done) { noiseHit(AC.currentTime, 900, .3, .08); beep(260, .06, .08, 'square'); beep(420, .05, .06, 'square', .05); } else noiseHit(AC.currentTime, 1600, .12, .25, 'bandpass'); }
+function sndSlide() { if (AC) noiseHit(AC.currentTime, 500, .25, .45, 'bandpass'); }
+const slideDir = new THREE.Vector3();
+function startSlide() {
+  if (!P.onGround || P.slideT > 0) return;
+  slideDir.set(P.vel.x, 0, P.vel.z); if (slideDir.lengthSq() < 1) return; slideDir.normalize();
+  P.slideV = Math.max(10.5, Math.hypot(P.vel.x, P.vel.z) + 2.5); P.slideT = .8; P.crouch = true; P.tac = P.tacReq = false; sndSlide();
+}
+// crouch while sprinting is a slide, as in Call of Duty
+function crouchPress() { if (P.alive && !P.veh && P.sprint && P.onGround) startSlide(); else P.crouch = !P.crouch; }
+// sprint twice quickly for a tactical sprint
+function sprintTap() { if (G.time - lastSprintTap < .32) P.tacReq = true; lastSprintTap = G.time; }
 function swapTo(i) {
   if (i === cur || !P.alive || !guns[i]) return;
+  P.plating = false;
   guns[cur].m.group.visible = false;
   cur = i; reloading = false; swapT = 0; burstLeft = 0; nextShot = Math.max(nextShot, G.time + .35);
   sndClick(600);
@@ -3276,6 +3305,12 @@ function interact() {
 
 /* ---------- moving, aiming, the gun in your hands ---------- */
 const fwd = new THREE.Vector3(), right = new THREE.Vector3(), wish = new THREE.Vector3();
+// the plate in your left hand while you put it in
+const plateVM = new THREE.Group();
+{ const pl = new THREE.Mesh(new THREE.BoxGeometry(.2, .26, .025), new THREE.MeshPhongMaterial({ color: 0x4a5560, shininess: 30, specular: 0x333333 }));
+  const ed = new THREE.Mesh(new THREE.BoxGeometry(.21, .03, .03), new THREE.MeshPhongMaterial({ color: 0x1c1f22 })); ed.position.y = .12;
+  const gl = new THREE.Mesh(new THREE.BoxGeometry(.08, .07, .1), new THREE.MeshPhongMaterial({ color: 0x2f2b26 })); gl.position.set(.06, -.1, .03);
+  plateVM.add(pl, ed, gl); plateVM.visible = false; wScene.add(plateVM); }
 function updatePlayer(dt, input) {
   if (P.veh) return updateDriving(dt, input);
   const g = guns[cur], s = g.s;
@@ -3290,18 +3325,26 @@ function updatePlayer(dt, input) {
   const aiming = input && mouse.r && !reloading && P.alive && swapT >= 1;
   // sprint ends the moment you shoot or aim, so the trigger always works
   const sprintKey = input && P.alive && keys.ShiftLeft && keys.KeyW && P.onGround && !P.crouch && !P.drop;
-  P.sprint = sprintKey && !aiming && !wantShoot && !(adsT > .3);
+  P.sprint = sprintKey && !aiming && !wantShoot && !(adsT > .3) && !P.plating;
+  if (P.sprint) { if (P.tacReq && P.tacT < 3) P.tac = true; if (P.tac) { P.tacT += dt; if (P.tacT >= 3) { P.tac = false; P.tacReq = false; } } }
+  else { P.tac = false; P.tacReq = false; P.tacT = Math.max(0, P.tacT - dt * 1.2); }
   if (P.sprint) sprintOut = 0.12; else sprintOut = Math.max(0, sprintOut - dt);
   const wet = inWater(P.pos.x, P.pos.z, P.feet);
-  let speed = (P.sprint ? 9.2 : P.crouch ? 3.2 : 6) * s.mob * (wet ? 0.6 : 1);
+  let speed = (P.sprint ? (P.tac ? 11.4 : 9.2) : P.crouch ? 3.2 : 6) * s.mob * (wet ? 0.6 : 1);
   if (adsT > .5) speed = Math.min(speed, 3.6 * s.adsMove * s.mob);
   if (P.drop) speed = 10;
   const accel = P.onGround ? 12 : P.drop ? 3 : 2.5;
-  P.vel.x = lerp(P.vel.x, wish.x * speed, 1 - Math.exp(-accel * dt));
-  P.vel.z = lerp(P.vel.z, wish.z * speed, 1 - Math.exp(-accel * dt));
+  if (P.slideT > 0) {
+    P.slideT -= dt; const k = Math.max(0, P.slideT / .8), sp = 3 + (P.slideV - 3) * k * k;
+    P.vel.x = slideDir.x * sp; P.vel.z = slideDir.z * sp;
+    if (!P.onGround) P.slideT = 0;
+  } else {
+    P.vel.x = lerp(P.vel.x, wish.x * speed, 1 - Math.exp(-accel * dt));
+    P.vel.z = lerp(P.vel.z, wish.z * speed, 1 - Math.exp(-accel * dt));
+  }
   P.pos.x += P.vel.x * dt; P.pos.z += P.vel.z * dt;
   resolve(P.pos, .4, P.feet, P.crouch ? 1.2 : 1.75);
-  if (input && P.alive && keys.Space && P.onGround && !wet) { P.vy = 6.3; P.onGround = false; }
+  if (input && P.alive && keys.Space && P.onGround && !wet) { P.vy = 6.3; P.onGround = false; if (P.slideT > 0) { P.slideT = 0; P.crouch = false; } }
   P.vy -= 18 * dt;
   if (P.drop) P.vy = Math.max(P.vy, -9);
   P.feet += P.vy * dt;
@@ -3318,7 +3361,19 @@ function updatePlayer(dt, input) {
   if (reloading && G.time >= reloadEnd) { const take = Math.min(s.mag - g.magLeft, g.reserveLeft); g.magLeft += take; g.reserveLeft -= take; reloading = false; }
   swapT = Math.min(1, swapT + dt / .35);
   adsT = clamp(adsT + (aiming ? dt : -dt) / s.adsTime, 0, 1);
-  if (input && P.alive && G.time >= nextShot && sprintOut <= 0) {
+  // armor plates: one at a time; holding the button keeps going. Shooting stops it.
+  const plateWant = input && P.alive && !P.veh && (keys.Digit4 || padPlateHeld) && G.rules && G.rules.kind === 'br';
+  if (P.plating && wantShoot && P.plateT < PLATE_TIME * .8) P.plating = false;
+  if (!P.plating && plateWant && !wantShoot && P.plates > 0 && P.armor < MAX_ARMOR) { P.plating = true; P.plateT = 0; reloading = false; burstLeft = 0; sndPlate(false); }
+  if (P.plating) {
+    P.plateT += dt;
+    if (P.plateT >= PLATE_TIME) {
+      P.plates--; P.armor = Math.min(MAX_ARMOR, P.armor + 50); sndPlate(true); padRumble(.3, .5, 80);
+      if (G.mode === 'net') mpSend({ t: 'plate' });
+      if (plateWant && P.plates > 0 && P.armor < MAX_ARMOR) { P.plateT = 0; sndPlate(false); } else P.plating = false;
+    }
+  }
+  if (input && P.alive && G.time >= nextShot && sprintOut <= 0 && !P.plating) {
     if (burstLeft > 0) { fire(); burstLeft--; if (burstLeft === 0) nextShot = G.time + s.burstGap; }
     else if (s.auto ? mouse.l : G.time - triggerT < 0.25) {
       triggerT = -9;
@@ -3344,7 +3399,7 @@ function updatePlayer(dt, input) {
   landDip = Math.max(0, landDip - dt * 0.9);
   const headBob = P.onGround ? Math.sin(bob * 2) * 0.03 * Math.min(1, spdH / 6) * (1 - ease) : 0;
   camera.position.set(P.pos.x, P.feet + P.eye + headBob - landDip, P.pos.z);
-  const roll = -(P.vel.x * right.x + P.vel.z * right.z) * 0.004 * (1 - ease);
+  const roll = -(P.vel.x * right.x + P.vel.z * right.z) * 0.004 * (1 - ease) + (P.slideT > 0 ? .06 : 0);
   camera.rotation.set(P.pitch + sy, P.yaw + sx, P.alive ? roll : 0.4);
   // viewmodel
   if (P.onGround) bob += spdH * dt * (P.sprint ? 1.25 : 1.6);
@@ -3368,7 +3423,11 @@ function updatePlayer(dt, input) {
     if (g.m.mag) g.m.mag.position.y = g.m.magY - Math.max(0, Math.sin(Math.PI * clamp((k - .15) / .6, 0, 1))) * .22;
   }
   if (swapT < 1) { gp.y -= (1 - swapT) * .3; rx -= (1 - swapT) * .6; }
-  if (P.sprint) { gp.x -= .04; gp.y -= .03; ry = .55; rz = .25; }
+  if (P.sprint && P.tac) { gp.x -= .03; gp.y += .05; rx = .95; ry = .25; rz = .15; }   // tactical sprint: gun up
+  else if (P.sprint) { gp.x -= .04; gp.y -= .03; ry = .55; rz = .25; }
+  if (P.slideT > 0) rz += .35;
+  if (P.plating) { const d = Math.sin(Math.PI * clamp(P.plateT / PLATE_TIME, 0, 1)); gp.y -= .16; rx -= .5; plateVM.visible = !scoped; plateVM.position.set(-.06, -.32 + d * .2, -.4); plateVM.rotation.set(.35 - d * .2, .25, .1); }
+  else plateVM.visible = false;
   g.m.group.rotation.set(rx, ry, rz);
   flashT -= dt; g.m.flash.visible = flashT > 0; if (g.m.flash.visible) g.m.flash.rotation.z = Math.random() * 3;
   return { scoped, spdH };
@@ -3427,8 +3486,8 @@ function zoneChip() {
 }
 function updateHUD(dt, scoped, spdH) {
   const g = guns[cur], s = g.s, V = modeView();
-  setText('hpv', String(Math.ceil(P.hp))); setText('arv', String(Math.ceil(P.armor)));
-  $('hpbar').firstChild.style.width = P.hp + '%'; $('arbar').firstChild.style.width = P.armor + '%';
+  setText('hpv', String(Math.ceil(P.hp))); setText('arv', `${Math.ceil(P.armor)} · ${P.plates} PLATE${P.plates === 1 ? '' : 'S'}`);
+  $('hpbar').firstChild.style.width = P.hp + '%'; $('arbar').firstChild.style.width = (P.armor / MAX_ARMOR * 100) + '%';
   $('armorrow').hidden = !V.armor;
   setText('ammon', `${g.magLeft} <small>/ ${g.reserveLeft}</small>`);
   setText('wname', `${escHtml(s.name)}${g.skin !== 'factory' ? ` <span class="skin">${SKINS[g.skin].name}</span>` : ''}`);
@@ -3453,13 +3512,17 @@ function updateHUD(dt, scoped, spdH) {
   else if (it && it.kind === 'bench') prompt = `${K} USE WORKBENCH · GUNS, SCOPES, MODS, SKINS`;
   else if (it && it.kind === 'gun') prompt = `${K} TAKE <span style="color:${TIERS[it.gg.tier].css}">${escHtml(GUNS[it.gg.id].name.toUpperCase())}</span> · DROPS ${escHtml(s.name.toUpperCase())}`;
   else if (it && it.kind === 'crate') prompt = `${K} OPEN <span style="color:${TIERS[it.c.tier].css}">${TIERS[it.c.tier].name.toUpperCase()}</span> CRATE`;
+  else if (P.plating) prompt = 'PLATING UP';
   else if (reloading) prompt = 'RELOADING';
   else if (g.magLeft === 0 && g.reserveLeft === 0) prompt = 'NO AMMO · SWITCH GUNS';
   else if (g.magLeft <= Math.ceil(s.mag * .2)) prompt = padUsing ? 'PRESS X TO RELOAD' : `PRESS ${escHtml(bindKey('reload').toUpperCase())} TO RELOAD`;
+  if (!prompt && P.alive && !P.veh && V.armor && P.plates > 0 && P.armor <= MAX_ARMOR - 50) prompt = `${padUsing ? `<kbd>${escHtml(padLabel('plate'))}</kbd>` : bindKbd('plate')} PLATE UP · ${P.plates} LEFT`;
   setText('prompt', prompt);
+  drawCompass();
   const rb = $('reloadbar');
-  rb.hidden = !reloading;
-  if (reloading) rb.firstChild.style.width = clamp(100 * (1 - (reloadEnd - G.time) / s.reload), 0, 100) + '%';
+  rb.hidden = !reloading && !P.plating;
+  if (P.plating) rb.firstChild.style.width = clamp(100 * P.plateT / PLATE_TIME, 0, 100) + '%';
+  else if (reloading) rb.firstChild.style.width = clamp(100 * (1 - (reloadEnd - G.time) / s.reload), 0, 100) + '%';
   toastTimer -= dt; $('toast').style.opacity = toastTimer > 0 ? 1 : 0;
   hitTimer -= dt; $('hit').style.opacity = hitTimer > 0 ? 1 : 0;
   vignT -= dt; $('vign').style.opacity = Math.max(0, vignT * 2.5) + (P.alive && P.hp < 35 ? (35 - P.hp) / 50 : 0);
@@ -3521,6 +3584,45 @@ function drawMinimap(V) {
   mctx.fillStyle = '#ffffff'; mctx.beginPath(); mctx.moveTo(c, c - 9); mctx.lineTo(c + 6, c + 6); mctx.lineTo(c, c + 2); mctx.lineTo(c - 6, c + 6); mctx.closePath(); mctx.fill();
 }
 
+/* ---------- compass: the bearing strip across the top, as in Warzone ---------- */
+const COMPASS_W = 440, COMPASS_H = 34, COMPASS_FOV = 150; // degrees shown across the strip
+const CARD = { 0: 'N', 45: 'NE', 90: 'E', 135: 'SE', 180: 'S', 225: 'SW', 270: 'W', 315: 'NW' };
+function drawCompass() {
+  const cv = $('compass'); if (!cv) return;
+  const show = G.playing && (P.alive || P.veh);
+  cv.hidden = !show; if (!show) return;
+  const x = cv.getContext('2d'), W = COMPASS_W, H = COMPASS_H;
+  const head = ((-P.yaw * 180 / Math.PI) % 360 + 360) % 360, px = W / COMPASS_FOV;
+  const at = deg => { let d = ((deg - head + 540) % 360) - 180; return W / 2 + d * px; };
+  x.clearRect(0, 0, W, H);
+  const g = x.createLinearGradient(0, 0, W, 0); g.addColorStop(0, 'rgba(10,14,17,0)'); g.addColorStop(.15, 'rgba(10,14,17,.55)'); g.addColorStop(.85, 'rgba(10,14,17,.55)'); g.addColorStop(1, 'rgba(10,14,17,0)');
+  x.fillStyle = g; x.fillRect(0, 0, W, H);
+  x.textAlign = 'center'; x.textBaseline = 'middle';
+  for (let d = 0; d < 360; d += 5) {
+    const sx = at(d); if (sx < 4 || sx > W - 4) continue;
+    const fade = 1 - Math.abs(sx - W / 2) / (W / 2) * .85;
+    x.globalAlpha = fade;
+    if (CARD[d] != null) { x.fillStyle = d === 0 ? '#ffb547' : '#e8edf0'; x.font = '600 15px Barlow, sans-serif'; x.fillText(CARD[d], sx, 13); }
+    else if (d % 15 === 0) { x.fillStyle = '#b8c2c8'; x.font = '500 10px Barlow, sans-serif'; x.fillText(String(d), sx, 13); }
+    x.fillStyle = 'rgba(232,237,240,.7)'; x.fillRect(sx - .5, H - (d % 15 === 0 ? 9 : 5), 1, d % 15 === 0 ? 9 : 5);
+  }
+  x.globalAlpha = 1;
+  // markers: the zone's centre, and your squad
+  const mark = (wx, wz, col, shape) => {
+    const b = (Math.atan2(wx - P.pos.x, -(wz - P.pos.z)) * 180 / Math.PI + 360) % 360, sx = at(b);
+    if (sx < 6 || sx > W - 6) return;
+    x.fillStyle = col; x.beginPath();
+    if (shape === 'zone') { x.arc(sx, 27, 4, 0, 6.29); x.fill(); x.strokeStyle = '#0c1013'; x.lineWidth = 1.5; x.stroke(); }
+    else { x.moveTo(sx, 30); x.lineTo(sx - 4.5, 22); x.lineTo(sx + 4.5, 22); x.closePath(); x.fill(); }
+  };
+  if (G.rules && G.rules.kind === 'br' && Z.state !== 'wait') mark(Z.cx, Z.cz, '#ffffff', 'zone');
+  if (G.mode === 'bots') { for (const b of bots) if (b.ally && !b.dead) mark(b.pos.x, b.pos.z, teamCss(b.team), 'mate'); }
+  else if (G.mode === 'net' && MP.avatars) { for (const av of MP.avatars.values()) if (av.alive && av.team === MP.team) mark(av.pos.x, av.pos.z, teamCss(av.team), 'mate'); }
+  // the bearing you face
+  x.fillStyle = '#ffb547'; x.beginPath(); x.moveTo(W / 2, 0); x.lineTo(W / 2 - 5, -1); x.lineTo(W / 2, 6); x.lineTo(W / 2 + 5, -1); x.fill();
+  x.font = '600 11px Barlow, sans-serif'; x.fillStyle = '#ffb547'; x.fillText(String(Math.round(head) % 360), W / 2, H - 4 > 0 ? 25 : 25);
+}
+
 /* ---- 54-offline.js ---- */
 /* Playing against bots: battle royale in solos, duos, trios or squads (bots
    fill your squad), team deathmatch, and free-for-all. */
@@ -3533,7 +3635,7 @@ function clearOffline() { clearBots(); clearLoot(); clearCrates(); clearVehicles
 function resetPlayer(x, z, drop) {
   if (P.veh) { P.veh.driver = null; P.veh.speed = 0; P.veh = null; stopEngine(); }
   P.pos.set(x, 0, z); P.feet = groundAt(x, z, 999) + (drop || 0); P.vel.set(0, 0, 0); P.vy = 0; P.drop = !!drop;
-  P.pitch = 0; P.hp = 100; P.alive = true; P.crouch = false; P.breath = 1; adsT = 0; reloading = false; burstLeft = 0; recoilAcc = 0;
+  P.pitch = 0; P.hp = 100; P.alive = true; P.crouch = false; P.plating = false; P.slideT = 0; P.tac = P.tacReq = false; P.plates = 2; P.breath = 1; adsT = 0; reloading = false; burstLeft = 0; recoilAcc = 0;
 }
 function farSpawn(team, pts) {
   const enemies = [];
@@ -3866,13 +3968,13 @@ function hostHandle(id, m) {
       HS.vehOwner.set(i, id); hostBroadcast({ t: 'veh', v: i, on: 1, by: id });
     } else if (HS.vehOwner.get(i) === id) { HS.vehOwner.delete(i); hostBroadcast({ t: 'veh', v: i, on: 0, by: id, x: +m.x || 0, z: +m.z || 0, y: +m.y || 0 }); }
   }
+  else if (m.t === 'plate' && HS.state === 'match' && p.alive && HS.rules.kind === 'br') p.armor = Math.min(150, p.armor + 50);
   else if (m.t === 'ping') Net.sendTo(id, { t: 'pong', n: m.n });
   else if (m.t === 'shot' && HS.state === 'match' && p.alive) { hostBroadcast({ t: 'shot', id, a: m.a, b: m.b, s: m.s, q: m.q }, id); }
   else if (m.t === 'open' && HS.state === 'match' && p.alive) {
     const c = crates[m.c | 0];
     if (!c || HS.opened.has(c.i) || Math.hypot(c.x - p.st[0], c.z - p.st[2]) > 4.5) return;
     HS.opened.add(c.i);
-    if (HS.rules.kind === 'br') p.armor = Math.min(100, p.armor + c.armor);
     hostBroadcast({ t: 'crate', c: c.i, by: id });
   }
   else if (m.t === 'hit' && HS.state === 'match') {
@@ -3880,7 +3982,7 @@ function hostHandle(id, m) {
     let d = clamp(+m.d || 0, 0, 400);
     if (!v || !p.alive || !v.alive || v.team === p.team || d <= 0) return;
     if (performance.now() - v.spawnT < 1500 && HS.rules.kind !== 'br') return; // spawn protection
-    if (v.armor > 0) { const ab = Math.min(v.armor, d * 0.7); v.armor -= ab; d -= ab; }
+    if (v.armor > 0) { const ab = Math.min(v.armor, d); v.armor -= ab; d -= ab; }
     v.hp -= d; v.lastHit = performance.now();
     if (v.hp > 0) { hostBroadcast({ t: 'hp', id: v.id, hp: Math.round(v.hp), by: id }); return; }
     hostKill(v, p, m.h);
@@ -4024,7 +4126,7 @@ function applySnap(m) {
   const s = m.p;
   for (const id in s) {
     const st = s[id];
-    if (id === MP.me) { if (P.alive && st[6]) { P.hp = st[7]; P.armor = st[8] || 0; } continue; }
+    if (id === MP.me) { if (P.alive && st[6]) { P.hp = st[7]; const na = st[8] || 0; if (Math.ceil(na / 50) < Math.ceil(P.armor / 50) && !P.plating) plateBreak(); if (!P.plating) P.armor = na; } continue; }
     const av = MP.avatars.get(id); if (!av) continue;
     const wasAlive = av.alive;
     av.target.set(st[0], st[1], st[2]); av.tyaw = st[3]; av.crouch = st[5]; av.hp = st[7];
@@ -4071,7 +4173,7 @@ function enterMatch(m) {
     (m.opened || []).forEach(i => { if (crates[i]) openCrate(crates[i], 'other'); });
     if (m.zone) zoneSetup(m.zone[0], m.zone[1]);
   }
-  equip(); P.armor = 0;
+  equip(); P.armor = 0; P.plates = 2; P.plating = false; P.slideT = 0;
   const sp = m.spawns[MP.me];
   if (sp) mpRespawn(sp[0], sp[1], sp[2] || 0);
   else {
@@ -4167,16 +4269,17 @@ function netView() {
 
 /* ---- 57-pad.js ---- */
 /* ---------- controller ----------
-   Standard layout, the one most shooters use:
-     left stick   move, analog (click it to sprint)     right stick  look
-     LT or LB aim   RT or RB fire (hold for semi-autos too)   A jump   B crouch
+   Default layout, the one most shooters use (buttons by position, so on a
+   Nintendo pad "A" here is the bottom button, which Nintendo labels B):
+     left stick   move, analog (click: sprint, click twice: tactical sprint)
+     right stick  look
+     LT or LB aim   RT or RB fire (hold for semi-autos too)   A jump   B crouch / slide
      X reload, or use / pick up / drive when there is something to use
-     Y or d-pad up/down switch gun   click right stick to steady a scope
-     View/Back scoreboard   Start pause
-   Pads that do not report the standard layout often put their triggers on
-   axes that rest at -1; those are found and read as triggers too.
-   Driving: RT gas, LT brake and reverse, left stick steers, X or RB gets out.
-   The menus are PadNav's job (padnav.js, prepended by the build).
+     Y switch gun   d-pad up armor plate   d-pad down switch gun
+     R3 steady a scope   View/Back scoreboard   Start pause
+   Every action can be moved to any button on the Controls screen, and the
+   button names shown follow the pad: Xbox, PlayStation or Nintendo.
+   Driving: fire is gas, aim is brake and reverse, the left stick steers.
 
    It presses the game's own inputs - keys, mouse, triggerT, P.yaw/pitch -
    plus padMove/padDrive for analog movement, so a keyboard and a pad can both
@@ -4184,31 +4287,74 @@ function netView() {
 
    Aim assist, as console shooters have it, only for the controller: the look
    slows down over an enemy, follows them a little while you move, and pulling
-   LT near one brings the sights onto them. It never shoots for you. */
+   aim near one brings the sights onto them. It never shoots for you. */
 const padHeld = new Set();
 let padMouseL = false, padMouseR = false, padSprint = false, padLast = 0, padHeldTurn = 0, padSnapT = 0;
 let padUsing = false;                 // the last thing touched was the pad: prompts show pad buttons
+let padSeen = null;                   // the pad last seen, for the Controls screen
 const padMove = { x: 0, y: 0 };       // analog move, -1..1, y forward
 const padDrive = { on: false, thr: 0, steer: 0 };
-const padPrev = [];
 const padRest = {};                   // per pad: the axes as first seen, to spot triggers that rest at -1
-// how far a trigger is pulled, 0..1: the trigger, its bumper, or a trigger on an axis
-function padTrigs(gp) {
-  let L = Math.max(padVal(gp, 6), padVal(gp, 4)), R = Math.max(padVal(gp, 7), padVal(gp, 5));
-  let look = [2, 3];
-  if (gp.mapping !== 'standard') {
-    const rest = padRest[gp.id] || (padRest[gp.id] = gp.axes.slice());
-    const trig = [];
-    for (let i = 2; i < gp.axes.length; i++) if (rest[i] < -0.8) trig.push(i);
-    if (trig.length >= 2) { L = Math.max(L, (gp.axes[trig[0]] + 1) / 2); R = Math.max(R, (gp.axes[trig[1]] + 1) / 2); }
-    const sticks = []; for (let i = 2; i < gp.axes.length && sticks.length < 2; i++) if (!trig.includes(i)) sticks.push(i);
-    if (sticks.length === 2) look = sticks;
-  }
-  return { L, R, look };
+const padPrevAct = {};
+
+/* ---------- which pad, and what its buttons are called ---------- */
+const PAD_TYPES = [['auto', 'Auto'], ['xbox', 'Xbox'], ['ps', 'PlayStation'], ['nintendo', 'Nintendo']];
+const PAD_BTN = {
+  xbox: ['A', 'B', 'X', 'Y', 'LB', 'RB', 'LT', 'RT', 'View', 'Menu', 'LS', 'RS', 'D-pad up', 'D-pad down', 'D-pad left', 'D-pad right', 'Xbox'],
+  ps: ['✕', '○', '□', '△', 'L1', 'R1', 'L2', 'R2', 'Create', 'Options', 'L3', 'R3', 'D-pad up', 'D-pad down', 'D-pad left', 'D-pad right', 'PS'],
+  nintendo: ['B', 'A', 'Y', 'X', 'L', 'R', 'ZL', 'ZR', '−', '+', 'LS', 'RS', 'D-pad up', 'D-pad down', 'D-pad left', 'D-pad right', 'Home'],
+};
+let padTypeSet = store.get('padType', 'auto');
+function padTypeOf(gp) {
+  if (padTypeSet !== 'auto') return padTypeSet;
+  const id = (gp && gp.id) || '';
+  if (/057e|nintendo|pro controller|joy-?con|switch/i.test(id)) return 'nintendo';
+  if (/054c|dualsense|dualshock|playstation|wireless controller|ps[345]/i.test(id)) return 'ps';
+  return 'xbox';
+}
+function padCodeName(code, type) {
+  if (!code) return '—';
+  const m = /^b(\d+)$/.exec(code); if (m) return (PAD_BTN[type || padTypeOf(padSeen)] || PAD_BTN.xbox)[+m[1]] || 'Button ' + m[1];
+  const a = /^a(\d+)([+-])$/.exec(code); if (a) return `Axis ${a[1]}${a[2]}`;
+  return code;
 }
 
-function padDown(gp, i) { const b = gp.buttons[i]; return !!(b && (b.pressed || b.value > 0.35)); }
+/* ---------- what each button does ---------- */
+const PAD_ACTS = [
+  ['fire', 'Fire · gas', ['b7', 'b5']],
+  ['aim', 'Aim · brake', ['b6', 'b4']],
+  ['jump', 'Jump', ['b0', '']],
+  ['crouch', 'Crouch · slide', ['b1', '']],
+  ['use', 'Reload · use · drive', ['b2', '']],
+  ['swap', 'Switch gun', ['b3', 'b13']],
+  ['plate', 'Armor plate', ['b12', '']],
+  ['sprint', 'Sprint · tactical sprint', ['b10', '']],
+  ['steady', 'Steady scope', ['b11', '']],
+  ['board', 'Scoreboard', ['b8', '']],
+];
+let padBinds = {};
+function loadPadBinds() {
+  const s = store.get('padBinds', null) || {};
+  padBinds = {};
+  for (const [id, , def] of PAD_ACTS) padBinds[id] = Array.isArray(s[id]) && s[id].length === 2 ? s[id].map(c => typeof c === 'string' ? c : '') : def.slice();
+}
+function savePadBinds() { store.set('padBinds', padBinds); }
+function setPadBind(id, slot, code) {
+  if (code) for (const a in padBinds) for (let i = 0; i < 2; i++) if (padBinds[a][i] === code) padBinds[a][i] = '';
+  padBinds[id][slot] = code; savePadBinds();
+}
+function resetPadBinds() { for (const [id, , def] of PAD_ACTS) padBinds[id] = def.slice(); savePadBinds(); }
+function padLabel(id) { const b = padBinds[id] || []; return padCodeName(b[0] || b[1]); }
+loadPadBinds();
+
 function padVal(gp, i) { const b = gp.buttons[i]; return b ? (b.value || (b.pressed ? 1 : 0)) : 0; }
+function padCodeVal(gp, code) {
+  if (!code) return 0;
+  if (code[0] === 'b') return padVal(gp, +code.slice(1));
+  const i = +code.slice(1, -1), v = gp.axes[i] || 0, rest = (padRest[gp.id] || [])[i] || 0;
+  if (rest < -0.8) return code.endsWith('+') ? clamp((v + 1) / 2, 0, 1) : 0; // a trigger on an axis
+  return code.endsWith('+') ? Math.max(0, v) : Math.max(0, -v);
+}
 // radial dead zone, so a stick pushed straight up does not drift sideways
 function padStick2(x, y, dz = 0.14) {
   const m = Math.hypot(x, y);
@@ -4224,7 +4370,7 @@ function padRelease() {
   for (const k of padHeld) keys[k] = false;
   padHeld.clear();
   if (padMouseL) mouse.l = false; if (padMouseR) mouse.r = false;
-  padMouseL = padMouseR = padSprint = false;
+  padMouseL = padMouseR = padSprint = false; padPlateHeld = false;
   padMove.x = padMove.y = 0; padDrive.on = false; padDrive.thr = padDrive.steer = 0;
 }
 function padFind() {
@@ -4237,6 +4383,35 @@ function padRumble(strong, weak, ms) {
   const gp = padUsing && padFind(), a = gp && gp.vibrationActuator;
   if (a && a.playEffect) try { a.playEffect('dual-rumble', { duration: ms, strongMagnitude: strong, weakMagnitude: weak }).catch(() => {}); } catch (e) {}
 }
+// The sticks: left moves, right looks. A pad without the standard layout keeps
+// its triggers on axes that rest at -1, and its right stick on the next two others.
+function padSticks(gp) {
+  let look = [2, 3], trig = [];
+  if (gp.mapping !== 'standard') {
+    const rest = padRest[gp.id];
+    for (let i = 2; i < gp.axes.length; i++) if (rest[i] < -0.8) trig.push(i);
+    const st = []; for (let i = 2; i < gp.axes.length && st.length < 2; i++) if (!trig.includes(i)) st.push(i);
+    if (st.length === 2) look = st;
+  }
+  return { look, trig };
+}
+
+/* ---------- waiting for a button on the Controls screen ---------- */
+let padCapture = null; // { done(code), armed, t0 }
+function padCaptureStep(gp) {
+  const c = padCapture, rest = padRest[gp.id], { look } = padSticks(gp);
+  let hit = null, anyHeld = false;
+  gp.buttons.forEach((b, i) => { if (b && (b.pressed || b.value > 0.5)) { anyHeld = true; if (!hit) hit = 'b' + i; } });
+  for (let i = 0; i < gp.axes.length; i++) {
+    if (i < 2 || look.includes(i)) continue; // the sticks stay sticks
+    const d = (gp.axes[i] || 0) - (rest[i] || 0);
+    if (Math.abs(d) > 0.6) { anyHeld = true; if (!hit) hit = 'a' + i + (d > 0 ? '+' : '-'); }
+  }
+  if (!c.armed) { if (!anyHeld) c.armed = true; }
+  else if (hit) { padCapture = null; c.done(hit === 'b9' ? null : hit); return; } // Start cancels
+  if (performance.now() - c.t0 > 8000) { padCapture = null; c.done(null); }
+}
+
 // The enemy nearest the crosshair, if one is close to it and in sight
 const _pa = new THREE.Vector3(), _pb = new THREE.Vector3();
 function padAimTarget(maxDeg) {
@@ -4248,11 +4423,10 @@ function padAimTarget(maxDeg) {
   for (const [x, f, z] of list) {
     const dx = x - cx, dz = z - cz, dh = Math.hypot(dx, dz);
     if (dh > 160 || dh < 0.5) continue;
-    const y = f + (P.crouch ? 1.25 : 1.35), dy = y - cy;
+    const y = f + 1.35, dy = y - cy;
     const yaw = Math.atan2(-dx, -dz), pitch = Math.atan2(dy, dh);
     const ey = Math.atan2(Math.sin(yaw - P.yaw), Math.cos(yaw - P.yaw)), ep = pitch - P.pitch;
     const ang = Math.hypot(ey * Math.cos(P.pitch), ep);
-    // the cone is a couple of degrees plus the body's own width at that distance
     const cone = maxDeg * Math.PI / 180 + Math.atan(0.55 / dh);
     if (ang < cone && ang < bestA) { bestA = ang; best = { ey, ep, ang, cone, dh, x, y, z }; }
   }
@@ -4264,49 +4438,62 @@ function padFrame(now) {
   requestAnimationFrame(padFrame);
   const dt = Math.min(0.05, (now - (padLast || now)) / 1000); padLast = now;
   const gp = padFind();
+  padSeen = gp;
   if (!gp) { if (padHeld.size || padMouseL || padMouseR || padDrive.on) padRelease(); return; }
-  const down = gp.buttons.map((b, i) => padDown(gp, i));
-  const was = padPrev.slice();
-  const edge = i => down[i] && !was[i];
-  for (let i = 0; i < down.length; i++) padPrev[i] = down[i];
+  if (!padRest[gp.id]) padRest[gp.id] = gp.axes.slice();
+  if (padCapture) { padCaptureStep(gp); return; }
+  const S = padSticks(gp);
+  // every action's value, and its press this frame
+  const A = {};
+  for (const [id] of PAD_ACTS) {
+    let v = 0; for (const c of padBinds[id]) v = Math.max(v, padCodeVal(gp, c));
+    A[id] = { v, on: v > 0.35, edge: v > 0.35 && !padPrevAct[id] };
+  }
+  // a pad without the standard layout: its axis triggers fire and aim as well
+  if (gp.mapping !== 'standard' && S.trig.length >= 2) {
+    const L = clamp(((gp.axes[S.trig[0]] || -1) + 1) / 2, 0, 1), R = clamp(((gp.axes[S.trig[1]] || -1) + 1) / 2, 0, 1);
+    if (L > A.aim.v) A.aim = { v: L, on: L > .35, edge: L > .35 && !padPrevAct.aim };
+    if (R > A.fire.v) A.fire = { v: R, on: R > .35, edge: R > .35 && !padPrevAct.fire };
+  }
+  for (const id in A) padPrevAct[id] = A[id].on;
   const [mx, my] = padStick2(gp.axes[0] || 0, gp.axes[1] || 0);
-  const T = padTrigs(gp), ltOn = T.L > 0.3, rtOn = T.R > 0.3;
-  const [lx, ly] = padStick2(gp.axes[T.look[0]] || 0, gp.axes[T.look[1]] || 0, 0.12);
-  if (down.some(Boolean) || mx || my || lx || ly || ltOn || rtOn) padUsing = true;
-  padShowInfo(gp, down, T);
+  const [lx, ly] = padStick2(gp.axes[S.look[0]] || 0, gp.axes[S.look[1]] || 0, 0.12);
+  const anyBtn = gp.buttons.some(b => b && (b.pressed || b.value > .35));
+  if (anyBtn || mx || my || lx || ly) padUsing = true;
+  padShowInfo(gp, A);
 
   if (!G.playing || G.paused || G.over || !P.alive) { if (padHeld.size || padMouseL || padMouseR || padDrive.on) padRelease(); padSnapT = 0; return; }
 
   // move: analog through padMove; the d-pad left/right still strafes
-  padMove.x = mx + (down[15] ? 1 : 0) - (down[14] ? 1 : 0); padMove.y = -my;
+  padMove.x = mx + padVal(gp, 15) - padVal(gp, 14); padMove.y = -my;
   const fwd = padMove.y > 0.5;
-  if (edge(10)) padSprint = true;
+  if (A.sprint.edge) { padSprint = true; sprintTap(); }
   if (!fwd) padSprint = false;
   padKey('KeyW', fwd && padSprint);                 // sprint wants W held, as on a keyboard
-  padKey('ShiftLeft', padSprint || down[11]);       // R3 steadies a scope, same key
-  padKey('Space', down[0]);
-  padKey('Tab', down[8]);
+  padKey('ShiftLeft', padSprint || A.steady.on);
+  padKey('Space', A.jump.on);
+  padKey('Tab', A.board.on);
+  padPlateHeld = A.plate.on;
 
-  // driving: analog throttle on the triggers, the stick steers
+  // driving: analog gas and brake, the stick steers
   padDrive.on = !!P.veh;
   if (P.veh) {
-    padDrive.thr = T.R - T.L + (T.R < .1 && T.L < .1 ? Math.max(0, -my) - Math.max(0, my) : 0);
+    padDrive.thr = A.fire.v - A.aim.v + (A.fire.v < .1 && A.aim.v < .1 ? Math.max(0, -my) - Math.max(0, my) : 0);
     padDrive.steer = -mx;
     if (padMouseL) { mouse.l = false; padMouseL = false; }
     if (padMouseR) { mouse.r = false; padMouseR = false; }
   } else {
-    // triggers: LT aim, RT fire
-    if (ltOn && !mouse.r) { mouse.r = true; padMouseR = true; padSnapT = 0.18; }
-    else if (!ltOn && padMouseR) { mouse.r = false; padMouseR = false; }
-    if (rtOn && !mouse.l) { mouse.l = true; padMouseL = true; triggerT = G.time; }
-    else if (!rtOn && padMouseL) { mouse.l = false; padMouseL = false; }
+    if (A.aim.on && !mouse.r) { mouse.r = true; padMouseR = true; padSnapT = 0.18; }
+    else if (!A.aim.on && padMouseR) { mouse.r = false; padMouseR = false; }
+    if (A.fire.on && !mouse.l) { mouse.l = true; padMouseL = true; triggerT = G.time; }
+    else if (!A.fire.on && padMouseL) { mouse.l = false; padMouseL = false; }
     // holding the trigger keeps a semi-auto firing as fast as it can, as console shooters do
     if (padMouseL && guns[cur] && !guns[cur].s.auto) triggerT = G.time;
-    if (edge(1)) P.crouch = !P.crouch;
+    if (A.crouch.edge) crouchPress();
   }
-  // X: use whatever is in front of you, otherwise reload
-  if (edge(2)) { if (P.veh || findInteract()) interact(); else startReload(); }
-  if (!P.veh && (edge(3) || edge(12) || edge(13))) swapTo(1 - cur);
+  // use whatever is in front of you, otherwise reload
+  if (A.use.edge) { if (P.veh || findInteract()) interact(); else startReload(); }
+  if (!P.veh && A.swap.edge) swapTo(1 - cur);
 
   // look: an expo curve for fine aim near the centre, a turn boost when the
   // stick is held right over, slower while aiming down the sights
@@ -4321,38 +4508,34 @@ function padFrame(now) {
   if (lx || ly) {
     P.yaw -= lx * curve * rate * dt;
     P.pitch = clamp(P.pitch - ly * curve * rate * 0.8 * dt, -1.5, 1.5);
-    lookDX += lx * 6; lookDY += ly * 6;          // the gun sways with the look, as with a mouse
+    lookDX += lx * 6; lookDY += ly * 6;
   }
   if (tgt) {
-    // pulling LT near an enemy brings the sights onto them
     if (padSnapT > 0 && aiming) { const k = Math.min(1, dt / 0.06) * 0.8; P.yaw += tgt.ey * k; P.pitch += tgt.ep * k; }
-    // and while you move or look, the aim follows them a little
     else if (lm > 0.05 || Math.hypot(mx, my) > 0.1) { const k = Math.min(1, dt * (aiming ? 4 : 2.5)) * (1 - tgt.ang / tgt.cone); P.yaw += tgt.ey * k * .5; P.pitch += tgt.ep * k * .4; }
   }
   padSnapT = Math.max(0, padSnapT - dt);
 }
 requestAnimationFrame(padFrame);
-// On the pause screen: which controller the game sees and what it is pressing,
-// so a controller that misbehaves can be checked button by button.
-const PAD_NAMES = ['A', 'B', 'X', 'Y', 'LB', 'RB', 'LT', 'RT', 'View', 'Start', 'L-stick', 'R-stick', 'Up', 'Down', 'Left', 'Right', 'Home'];
+// On the pause and Controls screens: which pad the game sees and what it is pressing
 let padInfoT = 0;
-function padShowInfo(gp, down, T) {
-  const el = $('padInfo'); if (!el) return;
-  const show = G.paused && !$('pause').hidden;
-  el.hidden = !show; if (!show) return;
+function padShowInfo(gp, A) {
   const now = performance.now(); if (now - padInfoT < 100) return; padInfoT = now;
-  const on = down.map((d, i) => d ? (PAD_NAMES[i] || 'b' + i) : null).filter(Boolean);
-  if (T.L > 0.05) on.push('aim ' + Math.round(T.L * 100) + '%'); if (T.R > 0.05) on.push('fire ' + Math.round(T.R * 100) + '%');
-  el.textContent = `Controller: ${gp.id.replace(/\s*\(.*$/, '').slice(0, 40)} · ${gp.mapping === 'standard' ? 'standard layout' : 'non-standard layout'} · pressing: ${on.length ? on.join(', ') : 'nothing'}`;
+  const type = padTypeOf(gp), names = PAD_BTN[type];
+  const on = gp.buttons.map((b, i) => b && (b.pressed || b.value > .35) ? (names[i] || 'b' + i) : null).filter(Boolean);
+  for (let i = 0; i < gp.axes.length; i++) { const d = (gp.axes[i] || 0) - ((padRest[gp.id] || [])[i] || 0); if (Math.abs(d) > .6 && i > 3) on.push(`axis ${i}`); }
+  const acts = PAD_ACTS.filter(([id]) => A[id] && A[id].on).map(a => a[1].split(' ·')[0].toLowerCase());
+  const txt = `Controller: ${gp.id.replace(/\s*\(.*$/, '').slice(0, 40)} · ${PAD_TYPES.find(t => t[0] === type)[1]} buttons · ${gp.mapping === 'standard' ? 'standard layout' : 'non-standard layout'} · pressing: ${on.length ? on.join(', ') : 'nothing'}${acts.length ? ' → ' + acts.join(', ') : ''}`;
+  for (const [id, show] of [['padInfo', G.paused && !$('pause').hidden], ['padInfo2', !$('controls').hidden]]) { const el = $(id); if (!el) continue; el.hidden = !show; if (show) el.textContent = txt; }
 }
 // a key or the mouse means the keyboard is in charge again
 addEventListener('keydown', () => { padUsing = false; });
 addEventListener('mousedown', () => { padUsing = false; });
 
 if (window.PadNav) {
-  PadNav.active = () => !G.playing || G.paused || G.over;
+  PadNav.active = () => !padCapture && (!G.playing || G.paused || G.over);
   PadNav.onStart = () => {
-    if (!G.playing || G.over) return;
+    if (padCapture || !G.playing || G.over) return;
     if (!G.paused) uiPause();
     else if (!$('pause').hidden) $('resume').click();
   };
@@ -4386,12 +4569,13 @@ const ACTIONS = [
   ['fire', 'Mouse0', 'Fire', ['Mouse0', '']],
   ['aim', 'Mouse2', 'Aim down sights', ['Mouse2', '']],
   ['jump', 'Space', 'Jump', ['Space', '']],
-  ['sprint', 'ShiftLeft', 'Sprint · steady scope', ['ShiftLeft', '']],
-  ['crouch', 'KeyC', 'Crouch', ['KeyC', 'ControlLeft']],
+  ['sprint', 'ShiftLeft', 'Sprint (tap twice: tactical) · steady scope', ['ShiftLeft', '']],
+  ['crouch', 'KeyC', 'Crouch · slide while sprinting', ['KeyC', 'ControlLeft']],
   ['reload', 'KeyR', 'Reload', ['KeyR', '']],
   ['use', 'KeyE', 'Use · pick up · drive', ['KeyE', 'KeyF']],
   ['gun1', 'Digit1', 'Gun 1', ['Digit1', '']],
   ['gun2', 'Digit2', 'Gun 2', ['Digit2', '']],
+  ['plate', 'Digit4', 'Armor plate (hold for more)', ['Digit4', '']],
   ['swap', 'SwapGun', 'Switch gun', ['KeyQ', '']],
   ['board', 'Tab', 'Scoreboard', ['Tab', '']],
 ];
@@ -4451,7 +4635,8 @@ function pressAction(canon, down) {
   if (canon === 'KeyR') startReload();
   if (canon === 'Digit1') swapTo(0); if (canon === 'Digit2') swapTo(1);
   if (canon === 'SwapGun') swapTo(1 - cur);
-  if (canon === 'KeyC') P.crouch = !P.crouch;
+  if (canon === 'KeyC') crouchPress();
+  if (canon === 'ShiftLeft') sprintTap();
   if (canon === 'KeyE') interact();
 }
 addEventListener('keydown', e => {
@@ -4607,7 +4792,8 @@ function renderLegend() {
     `${k('jump')} Jump · ${k('crouch')} Crouch`,
     `${k('board')} Scoreboard`,
     `<kbd>Esc</kbd> Pause · change loadout`,
-    `<kbd>Controller</kbd> Sticks move &amp; look · LT aim · RT fire · A jump · B crouch · X reload &amp; use · Y switch · L3 sprint · R3 steady · Start pause`,
+    `${k('plate')} Armor plate · double-tap ${k('sprint')} tactical sprint · ${k('crouch')} while sprinting slides`,
+    `<kbd>Controller</kbd> ${['fire', 'aim', 'jump', 'crouch', 'use', 'swap', 'plate'].map(id => escHtml(padLabel(id)) + ' ' + PAD_ACTS.find(a => a[0] === id)[1].split(' ·')[0].toLowerCase()).join(' · ')} · Start pause`,
   ].map(h => `<div>${h}</div>`).join('');
 }
 function renderBinds(waitId, waitSlot) {
@@ -4616,19 +4802,39 @@ function renderBinds(waitId, waitSlot) {
     return `<button class="bk${c ? '' : ' empty'}${wait ? ' wait' : ''}${i ? ' alt2' : ''}" data-bind="${id}" data-slot="${i}" aria-label="${escHtml(label)}, ${i ? 'second' : 'first'} key: ${escHtml(keyName(c))}">${wait ? 'Press a key…' : escHtml(keyName(c))}</button>`;
   }).join('')).join('');
 }
+function renderPadBinds(waitId, waitSlot) {
+  $('padTypeChips').innerHTML = chipRow(PAD_TYPES.map(([k, n]) => [k, n, k === 'auto' ? (padSeen ? 'Looks like ' + PAD_TYPES.find(t => t[0] === padTypeOf(padSeen) || false)[1] : 'From the controller') : 'Its button names']), padTypeSet, 'padtype');
+  $('padBindList').innerHTML = PAD_ACTS.map(([id, label]) => `<div class="lbl">${escHtml(label)}</div>` + [0, 1].map(i => {
+    const c = padBinds[id][i], wait = id === waitId && i === waitSlot;
+    return `<button class="bk${c ? '' : ' empty'}${wait ? ' wait' : ''}${i ? ' alt2' : ''}" data-pbind="${id}" data-slot="${i}" aria-label="${escHtml(label)}, ${i ? 'second' : 'first'} button: ${escHtml(padCodeName(c))}">${wait ? 'Press a button…' : escHtml(padCodeName(c))}</button>`;
+  }).join('')).join('');
+}
+$('padTypeChips').addEventListener('click', e => { const b = e.target.closest('button[data-padtype]'); if (!b) return; padTypeSet = b.dataset.padtype; store.set('padType', padTypeSet); renderPadBinds(); renderLegend(); });
+$('padReset').addEventListener('click', () => { resetPadBinds(); renderPadBinds(); });
+$('padBindList').addEventListener('click', e => {
+  const b = e.target.closest('button[data-pbind]'); if (!b) return;
+  const id = b.dataset.pbind, slot = +b.dataset.slot;
+  renderPadBinds(id, slot);
+  padCapture = { armed: false, t0: performance.now(), done: code => {
+    if (code) setPadBind(id, slot, code);
+    renderPadBinds();
+    const again = $('padBindList').querySelector(`button[data-pbind="${id}"][data-slot="${slot}"]`); if (again) { again.focus(); if (window.PadNav && PadNav.reset) setTimeout(() => again.focus(), 80); }
+  } };
+});
 function openControls(from) {
-  controlsFrom = from; renderBinds();
+  controlsFrom = from; renderBinds(); renderPadBinds();
   if (from === 'pause') $('pause').hidden = true; else showOnly(null);
   $('controls').hidden = false;
 }
 function closeControls() {
-  bindCapture = null; $('controls').hidden = true; renderLegend();
+  bindCapture = null; padCapture = null; $('controls').hidden = true; renderLegend();
   if (controlsFrom === 'pause') $('pause').hidden = false; else showOnly('menu');
 }
 $('openControls').addEventListener('click', () => openControls('menu'));
 $('pauseControls').addEventListener('click', () => openControls('pause'));
 $('bindsDone').addEventListener('click', closeControls);
 $('bindsReset').addEventListener('click', () => { resetBinds(); renderBinds(); });
+function renderBreath() { const b = $('breath'); if (b && b.firstChild) b.firstChild.textContent = `HOLD ${bindKey('sprint').toUpperCase()} TO STEADY`; }
 $('bindList').addEventListener('click', e => {
   const b = e.target.closest('button[data-bind]'); if (!b || performance.now() < swallowClick) return;
   const id = b.dataset.bind, slot = +b.dataset.slot;
@@ -4643,7 +4849,7 @@ $('bindList').addEventListener('click', e => {
 });
 // the click that follows a mouse button being bound must not start another wait
 addEventListener('click', e => { if (performance.now() < swallowClick && e.target.closest && e.target.closest('#bindList')) { e.preventDefault(); e.stopPropagation(); } }, true);
-renderLegend();
+renderLegend(); renderBreath();
 $('resume').addEventListener('click', () => { initAudio(); $('pause').hidden = true; G.paused = false; lock(); canvas.focus(); });
 function toMenu(note) {
   G.playing = false; G.paused = false; G.mode = null;
@@ -4847,7 +5053,7 @@ loadMap(G.map);
 // Test hook for driving the game from a script; only exists with ?ozdebug in the address.
 if (/[?&]ozdebug\b/.test(location.search)) window.__oz = { world, P, G, MP, HS, bots: () => bots, crates: () => crates, groundGuns: () => groundGuns, guns: () => guns, fire: () => fire(), mpSend, interact, loadMap, FPS };
 requestAnimationFrame(frame);
-addEventListener('keydown', e => { if (!bindCapture && e.code === 'Escape' && !$('controls').hidden) closeControls(); });
+addEventListener('keydown', e => { if (bindCapture || e.code !== 'Escape' || $('controls').hidden) return; if (padCapture) { padCapture = null; renderPadBinds(); } else closeControls(); });
 
 })();
 </script>

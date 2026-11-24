@@ -5,7 +5,7 @@ const G = { mode: null, rules: { kind: 'br', squad: 1, limit: 30 }, diff: store.
 if (!MAPS[G.map]) G.map = 'valley';
 if (!DIFF[G.diff]) G.diff = 'normal';
 const P = { pos: new THREE.Vector3(), vel: new THREE.Vector3(), vy: 0, feet: 0, yaw: 0, pitch: 0, onGround: false, crouch: false, eye: 1.65,
-  hp: 100, armor: 0, lastHurt: -99, alive: true, sprint: false, breath: 1, drop: false, veh: null };
+  hp: 100, armor: 0, plates: 2, plating: false, plateT: 0, tac: false, tacReq: false, tacT: 0, slideT: 0, slideV: 0, lastHurt: -99, alive: true, sprint: false, breath: 1, drop: false, veh: null };
 let guns = [];
 let cur = 0, adsT = 0, swapT = 1, kick = 0, bob = 0, nextShot = 0, reloading = false, reloadEnd = 0, flashT = 0, triggerT = -9, locked = false;
 let burstLeft = 0, recoilAcc = 0, lastShotT = -9, sprintOut = 0, stepAcc = 0, landDip = 0, lookDX = 0, lookDY = 0, swayX = 0, swayY = 0, airVy = 0;
@@ -55,7 +55,7 @@ let vignT = 0;
 function hurt(n, from, src) {
   if (!P.alive || G.mode !== 'bots') return;
   P.lastHurt = G.time;
-  if (P.armor > 0 && src !== 'zone') { const ab = Math.min(P.armor, n * 0.7); P.armor -= ab; n -= ab; }
+  if (P.armor > 0 && src !== 'zone') { const was = P.armor, ab = Math.min(P.armor, n); P.armor -= ab; n -= ab; if (Math.ceil(P.armor / 50) < Math.ceil(was / 50)) plateBreak(); }
   P.hp -= n; padRumble(.6, .3, 120);
   if (from) { vignT = .35; dmgArc(from); }
   if (P.hp <= 0) { P.hp = 0; P.alive = false; onPlayerKilled(src); }
@@ -71,8 +71,25 @@ function startReload() {
   reloading = true; reloadEnd = G.time + g.s.reload; burstLeft = 0;
   sndClick(700); sndClick(500, g.s.reload * 0.55); sndClick(1100, g.s.reload * 0.92);
 }
+/* ---------- Warzone-style armor: three plates of 50, put in one at a time ---------- */
+const PLATE_TIME = 1.1, MAX_PLATES = 5, MAX_ARMOR = 150;
+let padPlateHeld = false, lastSprintTap = -9;
+function plateBreak() { if (!AC) return; noiseHit(AC.currentTime, 2400, .35, .12, 'highpass'); beep(180, .09, .1, 'sawtooth'); padRumble(.8, .4, 140); }
+function sndPlate(done) { if (!AC) return; if (done) { noiseHit(AC.currentTime, 900, .3, .08); beep(260, .06, .08, 'square'); beep(420, .05, .06, 'square', .05); } else noiseHit(AC.currentTime, 1600, .12, .25, 'bandpass'); }
+function sndSlide() { if (AC) noiseHit(AC.currentTime, 500, .25, .45, 'bandpass'); }
+const slideDir = new THREE.Vector3();
+function startSlide() {
+  if (!P.onGround || P.slideT > 0) return;
+  slideDir.set(P.vel.x, 0, P.vel.z); if (slideDir.lengthSq() < 1) return; slideDir.normalize();
+  P.slideV = Math.max(10.5, Math.hypot(P.vel.x, P.vel.z) + 2.5); P.slideT = .8; P.crouch = true; P.tac = P.tacReq = false; sndSlide();
+}
+// crouch while sprinting is a slide, as in Call of Duty
+function crouchPress() { if (P.alive && !P.veh && P.sprint && P.onGround) startSlide(); else P.crouch = !P.crouch; }
+// sprint twice quickly for a tactical sprint
+function sprintTap() { if (G.time - lastSprintTap < .32) P.tacReq = true; lastSprintTap = G.time; }
 function swapTo(i) {
   if (i === cur || !P.alive || !guns[i]) return;
+  P.plating = false;
   guns[cur].m.group.visible = false;
   cur = i; reloading = false; swapT = 0; burstLeft = 0; nextShot = Math.max(nextShot, G.time + .35);
   sndClick(600);
@@ -196,6 +213,12 @@ function interact() {
 
 /* ---------- moving, aiming, the gun in your hands ---------- */
 const fwd = new THREE.Vector3(), right = new THREE.Vector3(), wish = new THREE.Vector3();
+// the plate in your left hand while you put it in
+const plateVM = new THREE.Group();
+{ const pl = new THREE.Mesh(new THREE.BoxGeometry(.2, .26, .025), new THREE.MeshPhongMaterial({ color: 0x4a5560, shininess: 30, specular: 0x333333 }));
+  const ed = new THREE.Mesh(new THREE.BoxGeometry(.21, .03, .03), new THREE.MeshPhongMaterial({ color: 0x1c1f22 })); ed.position.y = .12;
+  const gl = new THREE.Mesh(new THREE.BoxGeometry(.08, .07, .1), new THREE.MeshPhongMaterial({ color: 0x2f2b26 })); gl.position.set(.06, -.1, .03);
+  plateVM.add(pl, ed, gl); plateVM.visible = false; wScene.add(plateVM); }
 function updatePlayer(dt, input) {
   if (P.veh) return updateDriving(dt, input);
   const g = guns[cur], s = g.s;
@@ -210,18 +233,26 @@ function updatePlayer(dt, input) {
   const aiming = input && mouse.r && !reloading && P.alive && swapT >= 1;
   // sprint ends the moment you shoot or aim, so the trigger always works
   const sprintKey = input && P.alive && keys.ShiftLeft && keys.KeyW && P.onGround && !P.crouch && !P.drop;
-  P.sprint = sprintKey && !aiming && !wantShoot && !(adsT > .3);
+  P.sprint = sprintKey && !aiming && !wantShoot && !(adsT > .3) && !P.plating;
+  if (P.sprint) { if (P.tacReq && P.tacT < 3) P.tac = true; if (P.tac) { P.tacT += dt; if (P.tacT >= 3) { P.tac = false; P.tacReq = false; } } }
+  else { P.tac = false; P.tacReq = false; P.tacT = Math.max(0, P.tacT - dt * 1.2); }
   if (P.sprint) sprintOut = 0.12; else sprintOut = Math.max(0, sprintOut - dt);
   const wet = inWater(P.pos.x, P.pos.z, P.feet);
-  let speed = (P.sprint ? 9.2 : P.crouch ? 3.2 : 6) * s.mob * (wet ? 0.6 : 1);
+  let speed = (P.sprint ? (P.tac ? 11.4 : 9.2) : P.crouch ? 3.2 : 6) * s.mob * (wet ? 0.6 : 1);
   if (adsT > .5) speed = Math.min(speed, 3.6 * s.adsMove * s.mob);
   if (P.drop) speed = 10;
   const accel = P.onGround ? 12 : P.drop ? 3 : 2.5;
-  P.vel.x = lerp(P.vel.x, wish.x * speed, 1 - Math.exp(-accel * dt));
-  P.vel.z = lerp(P.vel.z, wish.z * speed, 1 - Math.exp(-accel * dt));
+  if (P.slideT > 0) {
+    P.slideT -= dt; const k = Math.max(0, P.slideT / .8), sp = 3 + (P.slideV - 3) * k * k;
+    P.vel.x = slideDir.x * sp; P.vel.z = slideDir.z * sp;
+    if (!P.onGround) P.slideT = 0;
+  } else {
+    P.vel.x = lerp(P.vel.x, wish.x * speed, 1 - Math.exp(-accel * dt));
+    P.vel.z = lerp(P.vel.z, wish.z * speed, 1 - Math.exp(-accel * dt));
+  }
   P.pos.x += P.vel.x * dt; P.pos.z += P.vel.z * dt;
   resolve(P.pos, .4, P.feet, P.crouch ? 1.2 : 1.75);
-  if (input && P.alive && keys.Space && P.onGround && !wet) { P.vy = 6.3; P.onGround = false; }
+  if (input && P.alive && keys.Space && P.onGround && !wet) { P.vy = 6.3; P.onGround = false; if (P.slideT > 0) { P.slideT = 0; P.crouch = false; } }
   P.vy -= 18 * dt;
   if (P.drop) P.vy = Math.max(P.vy, -9);
   P.feet += P.vy * dt;
@@ -238,7 +269,19 @@ function updatePlayer(dt, input) {
   if (reloading && G.time >= reloadEnd) { const take = Math.min(s.mag - g.magLeft, g.reserveLeft); g.magLeft += take; g.reserveLeft -= take; reloading = false; }
   swapT = Math.min(1, swapT + dt / .35);
   adsT = clamp(adsT + (aiming ? dt : -dt) / s.adsTime, 0, 1);
-  if (input && P.alive && G.time >= nextShot && sprintOut <= 0) {
+  // armor plates: one at a time; holding the button keeps going. Shooting stops it.
+  const plateWant = input && P.alive && !P.veh && (keys.Digit4 || padPlateHeld) && G.rules && G.rules.kind === 'br';
+  if (P.plating && wantShoot && P.plateT < PLATE_TIME * .8) P.plating = false;
+  if (!P.plating && plateWant && !wantShoot && P.plates > 0 && P.armor < MAX_ARMOR) { P.plating = true; P.plateT = 0; reloading = false; burstLeft = 0; sndPlate(false); }
+  if (P.plating) {
+    P.plateT += dt;
+    if (P.plateT >= PLATE_TIME) {
+      P.plates--; P.armor = Math.min(MAX_ARMOR, P.armor + 50); sndPlate(true); padRumble(.3, .5, 80);
+      if (G.mode === 'net') mpSend({ t: 'plate' });
+      if (plateWant && P.plates > 0 && P.armor < MAX_ARMOR) { P.plateT = 0; sndPlate(false); } else P.plating = false;
+    }
+  }
+  if (input && P.alive && G.time >= nextShot && sprintOut <= 0 && !P.plating) {
     if (burstLeft > 0) { fire(); burstLeft--; if (burstLeft === 0) nextShot = G.time + s.burstGap; }
     else if (s.auto ? mouse.l : G.time - triggerT < 0.25) {
       triggerT = -9;
@@ -264,7 +307,7 @@ function updatePlayer(dt, input) {
   landDip = Math.max(0, landDip - dt * 0.9);
   const headBob = P.onGround ? Math.sin(bob * 2) * 0.03 * Math.min(1, spdH / 6) * (1 - ease) : 0;
   camera.position.set(P.pos.x, P.feet + P.eye + headBob - landDip, P.pos.z);
-  const roll = -(P.vel.x * right.x + P.vel.z * right.z) * 0.004 * (1 - ease);
+  const roll = -(P.vel.x * right.x + P.vel.z * right.z) * 0.004 * (1 - ease) + (P.slideT > 0 ? .06 : 0);
   camera.rotation.set(P.pitch + sy, P.yaw + sx, P.alive ? roll : 0.4);
   // viewmodel
   if (P.onGround) bob += spdH * dt * (P.sprint ? 1.25 : 1.6);
@@ -288,7 +331,11 @@ function updatePlayer(dt, input) {
     if (g.m.mag) g.m.mag.position.y = g.m.magY - Math.max(0, Math.sin(Math.PI * clamp((k - .15) / .6, 0, 1))) * .22;
   }
   if (swapT < 1) { gp.y -= (1 - swapT) * .3; rx -= (1 - swapT) * .6; }
-  if (P.sprint) { gp.x -= .04; gp.y -= .03; ry = .55; rz = .25; }
+  if (P.sprint && P.tac) { gp.x -= .03; gp.y += .05; rx = .95; ry = .25; rz = .15; }   // tactical sprint: gun up
+  else if (P.sprint) { gp.x -= .04; gp.y -= .03; ry = .55; rz = .25; }
+  if (P.slideT > 0) rz += .35;
+  if (P.plating) { const d = Math.sin(Math.PI * clamp(P.plateT / PLATE_TIME, 0, 1)); gp.y -= .16; rx -= .5; plateVM.visible = !scoped; plateVM.position.set(-.06, -.32 + d * .2, -.4); plateVM.rotation.set(.35 - d * .2, .25, .1); }
+  else plateVM.visible = false;
   g.m.group.rotation.set(rx, ry, rz);
   flashT -= dt; g.m.flash.visible = flashT > 0; if (g.m.flash.visible) g.m.flash.rotation.z = Math.random() * 3;
   return { scoped, spdH };

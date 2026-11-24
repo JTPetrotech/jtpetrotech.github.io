@@ -143,13 +143,13 @@ function hostHandle(id, m) {
       HS.vehOwner.set(i, id); hostBroadcast({ t: 'veh', v: i, on: 1, by: id });
     } else if (HS.vehOwner.get(i) === id) { HS.vehOwner.delete(i); hostBroadcast({ t: 'veh', v: i, on: 0, by: id, x: +m.x || 0, z: +m.z || 0, y: +m.y || 0 }); }
   }
+  else if (m.t === 'plate' && HS.state === 'match' && p.alive && HS.rules.kind === 'br') p.armor = Math.min(150, p.armor + 50);
   else if (m.t === 'ping') Net.sendTo(id, { t: 'pong', n: m.n });
   else if (m.t === 'shot' && HS.state === 'match' && p.alive) { hostBroadcast({ t: 'shot', id, a: m.a, b: m.b, s: m.s, q: m.q }, id); }
   else if (m.t === 'open' && HS.state === 'match' && p.alive) {
     const c = crates[m.c | 0];
     if (!c || HS.opened.has(c.i) || Math.hypot(c.x - p.st[0], c.z - p.st[2]) > 4.5) return;
     HS.opened.add(c.i);
-    if (HS.rules.kind === 'br') p.armor = Math.min(100, p.armor + c.armor);
     hostBroadcast({ t: 'crate', c: c.i, by: id });
   }
   else if (m.t === 'hit' && HS.state === 'match') {
@@ -157,7 +157,7 @@ function hostHandle(id, m) {
     let d = clamp(+m.d || 0, 0, 400);
     if (!v || !p.alive || !v.alive || v.team === p.team || d <= 0) return;
     if (performance.now() - v.spawnT < 1500 && HS.rules.kind !== 'br') return; // spawn protection
-    if (v.armor > 0) { const ab = Math.min(v.armor, d * 0.7); v.armor -= ab; d -= ab; }
+    if (v.armor > 0) { const ab = Math.min(v.armor, d); v.armor -= ab; d -= ab; }
     v.hp -= d; v.lastHit = performance.now();
     if (v.hp > 0) { hostBroadcast({ t: 'hp', id: v.id, hp: Math.round(v.hp), by: id }); return; }
     hostKill(v, p, m.h);
@@ -301,7 +301,7 @@ function applySnap(m) {
   const s = m.p;
   for (const id in s) {
     const st = s[id];
-    if (id === MP.me) { if (P.alive && st[6]) { P.hp = st[7]; P.armor = st[8] || 0; } continue; }
+    if (id === MP.me) { if (P.alive && st[6]) { P.hp = st[7]; const na = st[8] || 0; if (Math.ceil(na / 50) < Math.ceil(P.armor / 50) && !P.plating) plateBreak(); if (!P.plating) P.armor = na; } continue; }
     const av = MP.avatars.get(id); if (!av) continue;
     const wasAlive = av.alive;
     av.target.set(st[0], st[1], st[2]); av.tyaw = st[3]; av.crouch = st[5]; av.hp = st[7];
@@ -348,7 +348,7 @@ function enterMatch(m) {
     (m.opened || []).forEach(i => { if (crates[i]) openCrate(crates[i], 'other'); });
     if (m.zone) zoneSetup(m.zone[0], m.zone[1]);
   }
-  equip(); P.armor = 0;
+  equip(); P.armor = 0; P.plates = 2; P.plating = false; P.slideT = 0;
   const sp = m.spawns[MP.me];
   if (sp) mpRespawn(sp[0], sp[1], sp[2] || 0);
   else {

@@ -40,8 +40,8 @@ function zoneChip() {
 }
 function updateHUD(dt, scoped, spdH) {
   const g = guns[cur], s = g.s, V = modeView();
-  setText('hpv', String(Math.ceil(P.hp))); setText('arv', String(Math.ceil(P.armor)));
-  $('hpbar').firstChild.style.width = P.hp + '%'; $('arbar').firstChild.style.width = P.armor + '%';
+  setText('hpv', String(Math.ceil(P.hp))); setText('arv', `${Math.ceil(P.armor)} · ${P.plates} PLATE${P.plates === 1 ? '' : 'S'}`);
+  $('hpbar').firstChild.style.width = P.hp + '%'; $('arbar').firstChild.style.width = (P.armor / MAX_ARMOR * 100) + '%';
   $('armorrow').hidden = !V.armor;
   setText('ammon', `${g.magLeft} <small>/ ${g.reserveLeft}</small>`);
   setText('wname', `${escHtml(s.name)}${g.skin !== 'factory' ? ` <span class="skin">${SKINS[g.skin].name}</span>` : ''}`);
@@ -66,13 +66,17 @@ function updateHUD(dt, scoped, spdH) {
   else if (it && it.kind === 'bench') prompt = `${K} USE WORKBENCH · GUNS, SCOPES, MODS, SKINS`;
   else if (it && it.kind === 'gun') prompt = `${K} TAKE <span style="color:${TIERS[it.gg.tier].css}">${escHtml(GUNS[it.gg.id].name.toUpperCase())}</span> · DROPS ${escHtml(s.name.toUpperCase())}`;
   else if (it && it.kind === 'crate') prompt = `${K} OPEN <span style="color:${TIERS[it.c.tier].css}">${TIERS[it.c.tier].name.toUpperCase()}</span> CRATE`;
+  else if (P.plating) prompt = 'PLATING UP';
   else if (reloading) prompt = 'RELOADING';
   else if (g.magLeft === 0 && g.reserveLeft === 0) prompt = 'NO AMMO · SWITCH GUNS';
   else if (g.magLeft <= Math.ceil(s.mag * .2)) prompt = padUsing ? 'PRESS X TO RELOAD' : `PRESS ${escHtml(bindKey('reload').toUpperCase())} TO RELOAD`;
+  if (!prompt && P.alive && !P.veh && V.armor && P.plates > 0 && P.armor <= MAX_ARMOR - 50) prompt = `${padUsing ? `<kbd>${escHtml(padLabel('plate'))}</kbd>` : bindKbd('plate')} PLATE UP · ${P.plates} LEFT`;
   setText('prompt', prompt);
+  drawCompass();
   const rb = $('reloadbar');
-  rb.hidden = !reloading;
-  if (reloading) rb.firstChild.style.width = clamp(100 * (1 - (reloadEnd - G.time) / s.reload), 0, 100) + '%';
+  rb.hidden = !reloading && !P.plating;
+  if (P.plating) rb.firstChild.style.width = clamp(100 * P.plateT / PLATE_TIME, 0, 100) + '%';
+  else if (reloading) rb.firstChild.style.width = clamp(100 * (1 - (reloadEnd - G.time) / s.reload), 0, 100) + '%';
   toastTimer -= dt; $('toast').style.opacity = toastTimer > 0 ? 1 : 0;
   hitTimer -= dt; $('hit').style.opacity = hitTimer > 0 ? 1 : 0;
   vignT -= dt; $('vign').style.opacity = Math.max(0, vignT * 2.5) + (P.alive && P.hp < 35 ? (35 - P.hp) / 50 : 0);
@@ -132,4 +136,43 @@ function drawMinimap(V) {
   mctx.restore();
   mctx.setTransform(1, 0, 0, 1, 0, 0);
   mctx.fillStyle = '#ffffff'; mctx.beginPath(); mctx.moveTo(c, c - 9); mctx.lineTo(c + 6, c + 6); mctx.lineTo(c, c + 2); mctx.lineTo(c - 6, c + 6); mctx.closePath(); mctx.fill();
+}
+
+/* ---------- compass: the bearing strip across the top, as in Warzone ---------- */
+const COMPASS_W = 440, COMPASS_H = 34, COMPASS_FOV = 150; // degrees shown across the strip
+const CARD = { 0: 'N', 45: 'NE', 90: 'E', 135: 'SE', 180: 'S', 225: 'SW', 270: 'W', 315: 'NW' };
+function drawCompass() {
+  const cv = $('compass'); if (!cv) return;
+  const show = G.playing && (P.alive || P.veh);
+  cv.hidden = !show; if (!show) return;
+  const x = cv.getContext('2d'), W = COMPASS_W, H = COMPASS_H;
+  const head = ((-P.yaw * 180 / Math.PI) % 360 + 360) % 360, px = W / COMPASS_FOV;
+  const at = deg => { let d = ((deg - head + 540) % 360) - 180; return W / 2 + d * px; };
+  x.clearRect(0, 0, W, H);
+  const g = x.createLinearGradient(0, 0, W, 0); g.addColorStop(0, 'rgba(10,14,17,0)'); g.addColorStop(.15, 'rgba(10,14,17,.55)'); g.addColorStop(.85, 'rgba(10,14,17,.55)'); g.addColorStop(1, 'rgba(10,14,17,0)');
+  x.fillStyle = g; x.fillRect(0, 0, W, H);
+  x.textAlign = 'center'; x.textBaseline = 'middle';
+  for (let d = 0; d < 360; d += 5) {
+    const sx = at(d); if (sx < 4 || sx > W - 4) continue;
+    const fade = 1 - Math.abs(sx - W / 2) / (W / 2) * .85;
+    x.globalAlpha = fade;
+    if (CARD[d] != null) { x.fillStyle = d === 0 ? '#ffb547' : '#e8edf0'; x.font = '600 15px Barlow, sans-serif'; x.fillText(CARD[d], sx, 13); }
+    else if (d % 15 === 0) { x.fillStyle = '#b8c2c8'; x.font = '500 10px Barlow, sans-serif'; x.fillText(String(d), sx, 13); }
+    x.fillStyle = 'rgba(232,237,240,.7)'; x.fillRect(sx - .5, H - (d % 15 === 0 ? 9 : 5), 1, d % 15 === 0 ? 9 : 5);
+  }
+  x.globalAlpha = 1;
+  // markers: the zone's centre, and your squad
+  const mark = (wx, wz, col, shape) => {
+    const b = (Math.atan2(wx - P.pos.x, -(wz - P.pos.z)) * 180 / Math.PI + 360) % 360, sx = at(b);
+    if (sx < 6 || sx > W - 6) return;
+    x.fillStyle = col; x.beginPath();
+    if (shape === 'zone') { x.arc(sx, 27, 4, 0, 6.29); x.fill(); x.strokeStyle = '#0c1013'; x.lineWidth = 1.5; x.stroke(); }
+    else { x.moveTo(sx, 30); x.lineTo(sx - 4.5, 22); x.lineTo(sx + 4.5, 22); x.closePath(); x.fill(); }
+  };
+  if (G.rules && G.rules.kind === 'br' && Z.state !== 'wait') mark(Z.cx, Z.cz, '#ffffff', 'zone');
+  if (G.mode === 'bots') { for (const b of bots) if (b.ally && !b.dead) mark(b.pos.x, b.pos.z, teamCss(b.team), 'mate'); }
+  else if (G.mode === 'net' && MP.avatars) { for (const av of MP.avatars.values()) if (av.alive && av.team === MP.team) mark(av.pos.x, av.pos.z, teamCss(av.team), 'mate'); }
+  // the bearing you face
+  x.fillStyle = '#ffb547'; x.beginPath(); x.moveTo(W / 2, 0); x.lineTo(W / 2 - 5, -1); x.lineTo(W / 2, 6); x.lineTo(W / 2 + 5, -1); x.fill();
+  x.font = '600 11px Barlow, sans-serif'; x.fillStyle = '#ffb547'; x.fillText(String(Math.round(head) % 360), W / 2, H - 4 > 0 ? 25 : 25);
 }

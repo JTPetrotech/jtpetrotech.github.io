@@ -618,9 +618,10 @@ function openCrate(c, who) {
   if (Math.hypot(c.x - P.pos.x, c.z - P.pos.z) < 40) sndCrate();
   if (who === 'me') {
     guns.forEach(g => g.reserveLeft = Math.min(g.s.reserve * 2, g.reserveLeft + g.s.mag * 2));
-    if (G.mode === 'bots') P.armor = Math.min(100, P.armor + c.armor);
+    const br = G.rules && G.rules.kind === 'br', np = Math.max(0, Math.min(MAX_PLATES - P.plates, c.tier >= 1 ? 3 : 2));
+    if (br) P.plates += np;
     const T = TIERS[c.tier];
-    toast(`+ AMMO · + ARMOR · ${T.name.toUpperCase()} ${GUNS[c.loot.id].name.toUpperCase()} INSIDE`);
+    toast(`+ AMMO${br && np > 0 ? ` · + ${np} PLATE${np > 1 ? 'S' : ''}` : ''} · ${T.name.toUpperCase()} ${GUNS[c.loot.id].name.toUpperCase()} INSIDE`);
     dropGun(c.loot, c.x + Math.sin(c.g.rotation.y) * .1, c.y + .9, c.z, true);
   } else if (who && who.kind === 'bot') {
     who.armor = Math.min(100, who.armor + c.armor);
@@ -657,7 +658,7 @@ function updateLoot(dt) {
     L.g.position.y = L.y + .55 + Math.sin(L.t * 2.2) * .1; L.g.rotation.y += dt * 1.4;
     if (P.alive && Math.hypot(P.pos.x - L.x, P.pos.z - L.z) < 1.5 && Math.abs(P.feet - L.y) < 2) {
       if (L.type === 'ammo') { guns.forEach(g => g.reserveLeft = Math.min(g.s.reserve * 2, g.reserveLeft + g.s.mag)); toast('+ AMMO'); }
-      else { if (P.armor >= 100) continue; P.armor = Math.min(100, P.armor + 50); toast('+ ARMOR PLATE'); }
+      else { if (P.plates >= MAX_PLATES) continue; P.plates++; toast('+ ARMOR PLATE'); }
       beep(660, .08, .1, 'sine'); beep(990, .1, .08, 'sine', .07);
       scene.remove(L.g); loot.splice(i, 1);
     }

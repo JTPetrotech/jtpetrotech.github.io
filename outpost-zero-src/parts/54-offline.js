@@ -9,7 +9,7 @@ function clearOffline() { clearBots(); clearLoot(); clearCrates(); clearVehicles
 function resetPlayer(x, z, drop) {
   if (P.veh) { P.veh.driver = null; P.veh.speed = 0; P.veh = null; stopEngine(); }
   P.pos.set(x, 0, z); P.feet = groundAt(x, z, 999) + (drop || 0); P.vel.set(0, 0, 0); P.vy = 0; P.drop = !!drop;
-  P.pitch = 0; P.hp = 100; P.alive = true; P.crouch = false; P.breath = 1; adsT = 0; reloading = false; burstLeft = 0; recoilAcc = 0;
+  P.pitch = 0; P.hp = 100; P.alive = true; P.crouch = false; P.plating = false; P.slideT = 0; P.tac = P.tacReq = false; P.plates = 2; P.breath = 1; adsT = 0; reloading = false; burstLeft = 0; recoilAcc = 0;
 }
 function farSpawn(team, pts) {
   const enemies = [];
