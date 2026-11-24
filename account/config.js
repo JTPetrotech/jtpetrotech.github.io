@@ -12,15 +12,18 @@
  * people about, with nothing else to change.
  */
 export const FIREBASE_CONFIG = {
-  apiKey: '',
-  authDomain: '',
-  projectId: '',
-  storageBucket: '',
-  messagingSenderId: '',
-  appId: '',
+  apiKey: 'AIzaSyCugvC94vK_y0BQIA8GEAN-hLK7Ohk0E6Y',
+  authDomain: 'the-arcade-977e1.firebaseapp.com',
+  projectId: 'the-arcade-977e1',
+  storageBucket: 'the-arcade-977e1.firebasestorage.app',
+  messagingSenderId: '478799546960',
+  appId: '1:478799546960:web:d1b89fea83acc422a45f55',
 };
 
 /** True once there is a project to talk to. */
 export function isConfigured() {
+  // The tests set ARCADE_DEVICE_ONLY to check the in-browser accounts without
+  // reaching the real project.
+  if (globalThis.ARCADE_DEVICE_ONLY) return false;
   return Boolean(FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.projectId);
 }

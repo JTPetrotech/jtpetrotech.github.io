@@ -13,6 +13,9 @@ import {
 import * as device from '../account/local.js';
 import * as account from '../account/arcade.js';
 
+// These check the in-browser accounts; the real project is never touched from here.
+globalThis.ARCADE_DEVICE_ONLY = true;
+
 let passed = 0;
 let failed = 0;
 const failures = [];
@@ -204,9 +207,9 @@ await test('a browser that refuses to store anything says so instead of pretendi
 
 /* ----------------------------------------------------- the shared account */
 
-await test('with nothing configured the Arcade still has accounts, on the device', async () => {
+await test('with no project to reach the Arcade still has accounts, on the device', async () => {
   await freshStore();
-  eq(account.isConfigured(), false, 'no project yet');
+  eq(account.isConfigured(), false, 'no project in reach');
   eq(await account.start(), 'device');
   eq(account.mode(), 'device');
   eq(account.whoami(), null, 'and nobody signed in');

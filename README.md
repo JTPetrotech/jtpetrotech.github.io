@@ -46,10 +46,8 @@ the account's copy back when somebody signs in.
   once when they start, so the page reloads once when the save changes.
 - Changes are sent every couple of seconds and when the tab is hidden or closed.
 
-Until Firebase is switched on (below) all of this is still in this browser
-only: progress follows the account between people on one device, not between
-devices. Once it is on, the same code follows you to any device with nothing
-else to change.
+Firebase is switched on (project `the-arcade-977e1`), so accounts and progress
+follow a player to any device they sign in on.
 
 Opened anywhere other than the live site - a memory stick, a Pi - the import of
 `/account/sync.js` fails quietly and each game runs exactly as before.
@@ -58,8 +56,8 @@ Opened anywhere other than the live site - a memory stick, a Pi - the import of
 
 | | where accounts live | follows you to another device |
 |---|---|---|
-| **device** (now) | this browser | no |
-| **cloud** (once configured) | a Firebase project | yes |
+| **device** | this browser | no |
+| **cloud** (live: `the-arcade-977e1`) | a Firebase project | yes |
 
 The screens, the rules and the error messages are identical either way, so
 switching over changes no behaviour. **Device mode is what a static site can
@@ -72,10 +70,10 @@ off the screen of anyone reading storage. That is tidiness, not security:
 whoever is holding the device could clear the lot and make a new account
 anyway. There is nothing here worth guarding beyond a chip balance.
 
-### Switching it on (about 10 minutes, free, no card)
+### How it was switched on (free Spark plan, no card)
 
-This is the one part that cannot be done from here - it needs somebody to
-create the project.
+Done once, in the Firebase console, as project **The Arcade**
+(`the-arcade-977e1`). Kept here in case it ever has to be done again.
 
 1. <https://console.firebase.google.com> -> **Add project**. Any name. Decline
    Google Analytics; nothing here uses it.
@@ -110,8 +108,14 @@ create the project.
 The config values are public by design. They name the project, they do not
 open it.
 
-Side Pot has its own copy of this in `poker-pages/firebase-config.js`. Point
-both at the same project and they share one account.
+Side Pot (`poker-pages/firebase-config.js`) and Top Shelf (`CLOUD_CONFIG` in
+`parts/49-cloud.js`) each have an older sign-in of their own that is left
+blank on purpose. Their progress goes through the Arcade account instead, via
+`account/sync.js`; filling those in would put a second, separate sign-in
+screen in front of players.
+
+The tests never touch the live project: `test/run.js` sets
+`ARCADE_DEVICE_ONLY` so the account code stays in device mode.
 
 ### Names are not email addresses
 
