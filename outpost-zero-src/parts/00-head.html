@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Outpost Zero</title>
-<meta name="description" content="Low-poly first-person shooter. Clear patrol bots solo, or play friends online with a match code.">
+<meta name="description" content="Low-poly first-person shooter. Battle royale in solos, duos, trios or squads, team deathmatch and free-for-all, against bots or friends online with a match code.">
 <!--FONTS-->
 <style>
 /* Layout: full-screen 3D canvas, HUD pinned to the corners, menus as cards over a dimmed field */
@@ -77,7 +77,16 @@ html,body{height:100%;margin:0;overflow:hidden;background:var(--ink);color:var(-
 #feed div{background:var(--panel);padding:3px 10px;border-left:2px solid var(--signal);animation:fade 4.5s forwards;letter-spacing:.06em}
 #feed .o{color:var(--orange)} #feed .b{color:var(--blue)}
 @keyframes fade{0%,80%{opacity:1}100%{opacity:0}}
-#prompt{left:50%;top:62%;transform:translateX(-50%);font-size:18px;letter-spacing:.12em;color:var(--signal)}
+#prompt{left:50%;top:62%;transform:translateX(-50%);font-size:18px;letter-spacing:.12em;color:var(--signal);white-space:nowrap}
+#prompt kbd{color:var(--ink);background:var(--signal);border-color:var(--signal);margin-right:4px}
+#reloadbar{left:50%;top:calc(62% + 28px);transform:translateX(-50%);width:120px;height:3px;background:rgba(255,255,255,.18)}
+#reloadbar i{display:block;height:100%;width:0;background:var(--signal)}
+#fps{right:max(16px,env(safe-area-inset-right,0px));bottom:max(170px,env(safe-area-inset-bottom,0px));font-size:14px;letter-spacing:.12em;color:var(--ok)}
+#squad{left:max(16px,env(safe-area-inset-left,0px));top:calc(max(16px,env(safe-area-inset-top,0px)) + 182px);display:grid;gap:5px;width:172px}
+.sqm{background:var(--panel);padding:4px 8px;font-size:14px;letter-spacing:.06em;border-left:2px solid var(--line2)}
+.sqm b{display:block;height:3px;margin-top:3px;background:rgba(255,255,255,.12)} .sqm b i{display:block;height:100%;background:var(--text)}
+.sqm.out{opacity:.45} .sqm.out span{text-decoration:line-through}
+#ammo .w .skin{font-size:12px;color:var(--dim);margin-left:6px;letter-spacing:.1em}
 #toast{left:50%;top:70%;transform:translateX(-50%);font-size:17px;letter-spacing:.12em;color:var(--ok)}
 #respawn{left:50%;top:40%;transform:translateX(-50%);text-align:center}
 #respawn b{display:block;font-size:56px;font-weight:400}
@@ -90,6 +99,10 @@ html,body{height:100%;margin:0;overflow:hidden;background:var(--ink);color:var(-
 #board{left:50%;top:50%;transform:translate(-50%,-50%);width:min(640px,calc(100vw - 32px));background:rgba(12,17,21,.88);border:1px solid var(--line);padding:16px 18px;text-shadow:none}
 /* scoreboard (HUD + end screen) */
 .teams{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.teams.many{grid-template-columns:repeat(auto-fill,minmax(180px,1fr))}
+ol.ffa{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+ol.ffa li{display:flex;justify-content:space-between;padding:6px 9px;background:rgba(255,255,255,.04);font-family:var(--body);font-size:14px;font-variant-numeric:tabular-nums}
+ol.ffa li.me{background:rgba(255,255,255,.12)} ol.ffa .kd{color:var(--dim)}
 .team h3{margin:0 0 6px;font-family:var(--display);font-weight:400;font-size:24px;letter-spacing:.08em;display:flex;justify-content:space-between}
 .team.t0 h3{color:var(--orange)} .team.t1 h3{color:var(--blue)}
 .team ol{list-style:none;margin:0;padding:0;display:grid;gap:4px}
@@ -162,6 +175,11 @@ a.arcade:hover{color:var(--text)}
 .sb span:last-child{text-align:right;font-variant-numeric:tabular-nums;color:var(--text)}
 .gunhead{font-family:var(--display);font-size:34px;letter-spacing:.05em;line-height:1}
 .gunsub{color:var(--dim);font-size:13px;margin:2px 0 10px}
+.skins{display:flex;flex-wrap:wrap;gap:6px}
+.skins button.sw{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.04);border:1px solid var(--line);color:var(--dim);padding:4px 9px 4px 4px;cursor:pointer;font-size:12px}
+.skins button.sw i{width:20px;height:20px;display:block;border:1px solid rgba(255,255,255,.2)}
+.skins button.sw.on{border-color:var(--signal);color:var(--text);background:rgba(255,181,71,.12)}
+label.set input[type=checkbox]{accent-color:var(--signal);width:16px;height:16px}
 @media (max-width:760px){.lo{grid-template-columns:1fr}.teams{grid-template-columns:1fr}}
 @media (max-width:560px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}#minimap{width:120px;height:120px}#vitals{width:180px}#ammo .n{font-size:40px}}
 @media (prefers-reduced-motion:reduce){#feed div,#dmg .arc{animation-duration:.01s}}
@@ -190,6 +208,9 @@ a.arcade:hover{color:var(--text)}
   <div id="topc" class="hud"></div>
   <div id="feed" class="hud"></div>
   <div id="prompt" class="hud"></div>
+  <div id="reloadbar" class="hud" hidden><i></i></div>
+  <div id="squad" class="hud"></div>
+  <div id="fps" class="hud" hidden></div>
   <div id="toast" class="hud"></div>
   <div id="respawn" class="hud" hidden><b id="respawnn">3</b><span id="respawnwho">KNOCKED OUT</span></div>
   <div id="vitals" class="hud">
@@ -207,37 +228,42 @@ a.arcade:hover{color:var(--text)}
 
 <!-- main menu -->
 <div class="ov" id="menu">
-  <div class="card">
+  <div class="card wide">
     <div class="eyebrow">Low-poly shooter · no blood, just scrap</div>
     <h1>Outpost Zero</h1>
-    <p>Clear the patrol bots before the zone closes, or host a match and send the code to your friends. Teams are split evenly as people join.</p>
+    <p>Drop into a battle royale in solos, duos, trios or squads, or play team deathmatch and free-for-all. Play against bots, or host a match and send the code to your friends. Teams are split evenly as people join.</p>
     <div class="row">
       <label class="set" for="pname">Your name <input class="txt" id="pname" maxlength="14" autocomplete="off" spellcheck="false"></label>
       <button class="alt" id="openLoadout">Loadout</button>
       <span class="note" id="loSummary" style="margin:0"></span>
     </div>
+    <div class="sec"><div class="k">MODE</div><div class="chips" id="modeChips"></div></div>
+    <div class="sec" id="squadRow"><div class="k">SQUAD SIZE</div><div class="chips" id="squadChips"></div></div>
+    <div class="sec"><div class="k">BOTS</div><div class="chips" id="diffChips"></div></div>
     <div class="sec"><div class="k">MAP</div><div class="chips" id="mapChips"></div></div>
     <div class="row sec">
-      <button class="go" id="play">Solo vs bots</button>
+      <button class="go" id="play">Play vs bots</button>
       <button class="alt" id="hostBtn">Host online</button>
       <button class="alt" id="joinBtn">Join with code</button>
     </div>
     <div class="row sec">
       <label class="set" for="sens">Look speed <input type="range" id="sens" min="0.3" max="2.5" step="0.05" value="1"></label>
       <label class="set" for="vol">Volume <input type="range" id="vol" min="0" max="1" step="0.05" value="0.6"></label>
+      <label class="set" for="fpsOn"><input type="checkbox" id="fpsOn" checked> Show FPS</label>
     </div>
     <div class="keys">
       <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Move</div>
       <div><kbd>L-Click</kbd> Fire · <kbd>R-Click</kbd> Aim</div>
       <div><kbd>1</kbd><kbd>2</kbd> / wheel Switch gun</div>
-      <div><kbd>R</kbd> Reload</div>
+      <div><kbd>R</kbd> Reload · <kbd>E</kbd> Open crate, take gun</div>
       <div><kbd>Shift</kbd> Sprint · steady scope</div>
       <div><kbd>Space</kbd> Jump · <kbd>C</kbd> Crouch</div>
-      <div><kbd>Tab</kbd> Scoreboard (online)</div>
+      <div><kbd>Tab</kbd> Scoreboard</div>
       <div><kbd>Esc</kbd> Pause · change loadout</div>
+      <div><kbd>Controller</kbd> Sticks move &amp; look · LT aim · RT fire · A jump · B crouch · X reload · RB use · Y switch · L3 sprint · R3 steady · Start pause</div>
     </div>
     <div class="note" id="best"></div>
-    <div class="note" id="touchnote" hidden>This game needs a keyboard and mouse.</div>
+    <div class="note" id="touchnote" hidden>This game needs a keyboard and mouse, or a controller.</div>
     <a class="arcade" href="https://jtpetrotech.github.io/">← The Arcade</a>
   </div>
 </div>
@@ -268,9 +294,11 @@ a.arcade:hover{color:var(--text)}
     <div class="status" id="lobbyStatus"></div>
     <div class="teams sec" id="lobbyTeams"></div>
     <div class="sec" id="hostCtl">
-      <div class="k">MAP</div><div class="chips" id="lobbyMaps"></div>
+      <div class="k">MODE</div><div class="chips" id="lobbyModes"></div>
+      <div class="sec" id="lobbySquadRow"><div class="k">SQUAD SIZE</div><div class="chips" id="lobbySquad"></div></div>
+      <div class="sec"><div class="k">MAP</div><div class="chips" id="lobbyMaps"></div></div>
       <div class="row sec">
-        <label class="set" for="scoreLimit">First to <select class="txt" id="scoreLimit"><option>15</option><option selected>25</option><option>40</option></select> kills</label>
+        <label class="set" for="scoreLimit" id="limitRow">First to <select class="txt" id="scoreLimit"><option>15</option><option selected>25</option><option>40</option></select> kills</label>
         <button class="alt" id="shuffleBtn">Shuffle teams</button>
       </div>
     </div>
@@ -286,12 +314,13 @@ a.arcade:hover{color:var(--text)}
 <!-- loadout -->
 <div class="ov" id="loadout" hidden>
   <div class="card wide">
-    <div class="eyebrow">Loadout · two guns, mods on each</div>
+    <div class="eyebrow">Loadout · two guns, mods and a skin on each</div>
     <div class="tabs" id="loTabs"><button data-s="0">Slot 1</button><button data-s="1">Slot 2</button></div>
     <div class="lo">
       <div>
         <div class="guns" id="loGuns"></div>
         <div class="sec" id="loAtts"></div>
+        <div class="attrow"><div class="k">SKIN</div><div class="skins" id="loSkins"></div></div>
       </div>
       <div>
         <div class="gunhead" id="loName"></div>

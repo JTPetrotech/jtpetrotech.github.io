@@ -27,7 +27,9 @@ function inlineScript(file){
 
 const parts = fs.readdirSync(path.join(DIR, 'parts')).sort();
 const head = fs.readFileSync(path.join(DIR, 'parts', parts.find(p => p.endsWith('.html'))), 'utf8');
-const js = parts.filter(p => p.endsWith('.js'))
+// Controller support for the menus - the Arcade's shared helper, src/padnav.js.
+const PADNAV = '/* ---- padnav.js (hub/src) ---- */\n' + fs.readFileSync(path.join(DIR, '..', 'src', 'padnav.js'), 'utf8') + '\n';
+const js = PADNAV + parts.filter(p => p.endsWith('.js'))
   .map(p => '/* ---- ' + p + ' ---- */\n' + fs.readFileSync(path.join(DIR, 'parts', p), 'utf8'))
   .join('\n');
 

@@ -3,13 +3,16 @@
    match share a map without sending it. Maps meant for team play are built
    point-symmetric: whatever stands at (x, z) also stands at (-x, -z). */
 
-const world = { id: null, half: 200, h: () => 0, boxes: [], circles: [], shootables: [], objs: [], spawns: [[], []] };
+const world = { id: null, half: 200, h: () => 0, boxes: [], circles: [], shootables: [], objs: [], spawns: [[], []], water: null, cratePts: [] };
 const heightAt = (x, z) => world.h(x, z);
+const sstep = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
 
 function isClear(x, z, r) {
+  if (Math.abs(x) > world.half - r - 1 || Math.abs(z) > world.half - r - 1) return false;
+  if (world.water != null && heightAt(x, z) < world.water + 0.2) return false;
   for (const b of world.boxes) if (x > b.minX - r && x < b.maxX + r && z > b.minZ - r && z < b.maxZ + r) return false;
   for (const c of world.circles) if ((x - c.x) ** 2 + (z - c.z) ** 2 < (c.r + r) ** 2) return false;
-  return Math.abs(x) < world.half - r - 1 && Math.abs(z) < world.half - r - 1;
+  return true;
 }
 function cornerRange(x, z, w, d) {
   let lo = Infinity, hi = -Infinity;
@@ -21,12 +24,15 @@ const WALLS = [0xb9b2a3, 0xa79f8d, 0xc8c0ae, 0x8e999b, 0xb38f6f, 0x98a38a, 0xc4b
 const ADOBE = [0xd6b88c, 0xcfa676, 0xe0c9a0, 0xbf9468, 0xc99e73];
 const CONCRETE = [0x9aa0a4, 0x8c9296, 0xa8adb0, 0x7f868b];
 const BOXCOL = [0xb5452f, 0x2f6fa8, 0x3f8a5a, 0xd19a2e, 0x7a7f86, 0xa8b3b8, 0x8e3f6b];
+const WOOD = [0x7a5a3c, 0x8a6542, 0x6b4e34, 0x94704a];
+const TOWERS = [0x8e989f, 0x9da3a6, 0x7d878e, 0xb0a99a, 0x6f7b84, 0xa39b8c];
+const CARS = [0xb23a2e, 0x2e5f9e, 0xd8d8d2, 0x2c3034, 0x6f7a3e, 0xc9a23a, 0x5a6b78];
 
 function makeBuilder(seed) {
   const r = mulberry(seed);
   const B = {
     r, R: (a, b) => a + (b - a) * r(), pick: arr => arr[(r() * arr.length) | 0],
-    inst: { box: [], win: [], trunk: [], crown: [], rock: [], mtn: [] },
+    inst: { box: [], win: [], trunk: [], crown: [], rock: [], mtn: [], cyl: [], wheel: [], roof: [] },
     box(x, z, w, d, h, color, opt = {}) {
       const [lo, hi] = cornerRange(x, z, w, d);
       let bottom = lo - 0.6, top = hi + h;
@@ -132,6 +138,49 @@ function makeBuilder(seed) {
         B.inst.mtn.push({ p: [Math.cos(a) * rr, s * 0.4 - 4, Math.sin(a) * rr], s: [s, s * B.R(0.7, 1.2), s], c: B.pick(cols) });
       }
     },
+    tank(x, z, r, h, col) {
+      const g = heightAt(x, z);
+      world.circles.push({ x, z, r: r + 0.1, top: g + h, tall: true });
+      B.inst.cyl.push({ p: [x, g + h / 2 - 0.3, z], s: [r, h + 0.6, r], c: col });
+      B.inst.cyl.push({ p: [x, g + h + 0.15, z], s: [r * 0.97, 0.3, r * 0.97], c: 0x8d9296 });
+      B.inst.cyl.push({ p: [x, g + h * 0.62, z], s: [r * 1.012, 0.4, r * 1.012], c: 0x9b5b3c });
+      B.inst.win.push({ p: [x + r + 0.08, g + h / 2, z], s: [0.12, h, 0.5], c: 0x4a4f54 });
+    },
+    pipes(x, z, len, along) {
+      const g = heightAt(x, z), n = Math.max(2, Math.round(len / 6));
+      for (let i = 0; i <= n; i++) {
+        const t = -len / 2 + i * len / n, px = along ? x + t : x, pz = along ? z : z + t;
+        B.box(px, pz, 0.45, 0.45, 4.6, 0x6c7378);
+      }
+      const rot = along ? [0, 0, Math.PI / 2] : [Math.PI / 2, 0, 0], cols = [0x9aa3a8, 0xb87a3e, 0x6f8a6a];
+      for (let k = 0; k < 3; k++) {
+        const o = (k - 1) * 0.65;
+        B.inst.cyl.push({ p: [along ? x : x + o, g + 3.7 + (k === 1 ? 0.45 : 0), along ? z + o : z], s: [0.22, len + 1, 0.22], c: cols[k], r: rot });
+      }
+    },
+    car(x, z, along, col) {
+      const g = heightAt(x, z), w = along ? 4.3 : 1.9, d = along ? 1.9 : 4.3;
+      const body = B.box(x, z, w, d, 0.8, col, { base: g + 0.32 });
+      const cw = along ? 2.3 : 1.7, cd = along ? 1.7 : 2.3, cx = along ? x - 0.25 : x, cz = along ? z : z - 0.25;
+      B.box(cx, cz, cw, cd, 0.62, col, { base: body.maxY });
+      B.inst.win.push({ p: [cx, body.maxY + 0.32, cz], s: [cw + 0.04, 0.42, cd + 0.04], c: 0x23313b });
+      for (const a of [-1, 1]) for (const b of [-1, 1]) {
+        const wx = along ? x + a * 1.35 : x + b * 0.9, wz = along ? z + b * 0.9 : z + a * 1.35;
+        B.inst.wheel.push({ p: [wx, g + 0.36, wz], s: [0.36, 0.26, 0.36], c: 0x1c1e20, r: along ? [Math.PI / 2, 0, 0] : [0, 0, Math.PI / 2] });
+      }
+    },
+    lamp(x, z) {
+      const g = heightAt(x, z);
+      B.box(x, z, 0.18, 0.18, 5.2, 0x3b4045);
+      B.inst.win.push({ p: [x, g + 5.25, z], s: [0.5, 0.18, 0.5], c: 0xf2e3b0 });
+    },
+    cabin(x, z, w, d, h, cols = WOOD) {
+      const b = B.building(x, z, w, d, h, false, cols, true);
+      if (!b) return null;
+      B.inst.roof.push({ p: [x, b.maxY + 1.0, z], s: [(w / 2 + 0.5) / 0.7071, 2.0, (d / 2 + 0.5) / 0.7071], c: 0x5a3b2c, r: [0, Math.PI / 4, 0] });
+      b.maxY += 1.2; b.box3.max.y = b.maxY;
+      return b;
+    },
     fence(h, color) {
       const H = world.half;
       B.box(0, -H, H * 2 + 1, 1, h, color, { force: true });
@@ -143,9 +192,11 @@ function makeBuilder(seed) {
   return B;
 }
 
-function instanced(list, geo, shoot, shadow = true) {
+function instanced(list, geo, shoot, shadow = true, opt = {}) {
   if (!list.length) return null;
-  const im = new THREE.InstancedMesh(geo, new THREE.MeshPhongMaterial({ color: 0xffffff, flatShading: true, shininess: 4, specular: 0x111111 }), list.length);
+  const mat = new THREE.MeshPhongMaterial({ color: 0xffffff, flatShading: opt.smooth ? false : true, shininess: opt.shine || 4, specular: opt.shine ? 0x333333 : 0x111111 });
+  if (opt.detail !== 0) detail(mat, opt.detail || 0.24, opt.scale || 1);
+  const im = new THREE.InstancedMesh(geo, mat, list.length);
   const col = new THREE.Color();
   list.forEach((o, i) => {
     _e.set(...(o.r || [0, 0, 0])); _q.setFromEuler(_e);
@@ -235,42 +286,144 @@ function buildPit(B) {
   B.mountains(world.half + 120, world.half + 160, [0x6f6a5e, 0x5e5b52], 30, 60);
 }
 
+function buildRefinery(B) {
+  B.fence(3.4, 0x8a8f94);
+  B.building(0, 0, 12, 9, 4.4, true, CONCRETE, true);
+  const TANKC = [0xd8dcd8, 0xc9cfcc, 0xbfc5c2, 0xe0d9c8];
+  for (const [x, z, r, h] of [[-50, -40, 7, 9], [-50, -17, 6, 8], [-30, -52, 5, 7], [-64, -70, 8, 11], [-18, -74, 6, 8.5], [-28, 32, 5, 6.5], [-50, 54, 7, 9], [-20, 64, 5, 7]]) {
+    const c = B.pick(TANKC); B.mirror(x, z, r + 1.5, (px, pz) => B.tank(px, pz, r, h, c));
+  }
+  B.mirror(-38, 2, 0.3, (x, z) => B.pipes(x, z, 22, false));
+  B.mirror(-23, -28, 0.3, (x, z) => B.pipes(x, z, 24, true));
+  B.mirror(-70, 22, 3, (x, z) => B.mast(x, z, 28, 0xb84a36));
+  for (const [x, z, w, d, h] of [[-66, 40, 8, 6, 3.4], [-12, 28, 7, 7, 3.2], [-40, 76, 10, 7, 4.2], [-84, -40, 7, 6, 3.4]])
+    B.mirror(x, z, Math.max(w, d) / 2 + 1, (px, pz) => B.building(px, pz, w, d, h, true, CONCRETE, true));
+  for (let i = 0, n = 0; i < 200 && n < 10; i++) { const x = B.R(-90, -8), z = B.R(-85, 85), al = B.r() < 0.5, col = B.pick(BOXCOL);
+    if (B.mirror(x, z, 5, (px, pz) => B.container(px, pz, al, 6, B.r() < 0.6 ? 1 : 2, col))) n++; }
+  for (let i = 0; i < 40; i++) { const x = B.R(-92, -4), z = B.R(-90, 90), l = B.R(2.5, 5), al = B.r() < 0.5;
+    B.mirror(x, z, l / 2 + 0.6, (px, pz) => B.wall(px, pz, l, al, 1.1, [0xc9c3b2, 0xb7b09c, 0xd9b84a])); }
+  for (let i = 0; i < 36; i++) { const x = B.R(-92, -4), z = B.R(-90, 90), st = B.r() < 0.3; B.mirror(x, z, 1, (px, pz) => B.crate(px, pz, st)); }
+  B.mountains(world.half + 110, world.half + 160, [0x7a7f73, 0x8b8a7e], 25, 55);
+}
+function buildTimber(B) {
+  B.building(0, 0, 14, 10, 5, true, WOOD, true);
+  for (const [x, z, w, d, h] of [[-30, -18, 8, 7, 3.4], [-62, 22, 9, 7, 3.6], [-48, -66, 8, 6, 3.2], [-90, -30, 7, 7, 3.2], [-20, 58, 9, 6, 3.4], [-75, 70, 8, 8, 3.6]])
+    B.mirror(x, z, Math.max(w, d) / 2 + 1.5, (px, pz) => B.cabin(px, pz, w, d, h));
+  for (const [x, z] of [[-55, -12], [-26, 86], [-96, 60]]) B.mirror(x, z, 3.5, (px, pz) => B.building(px, pz, 3.6, 3.6, 8.5, true, WOOD, true));
+  for (let i = 0; i < 40; i++) { const x = B.R(-110, 0), z = B.R(-110, 110), l = B.R(3, 6), al = B.r() < 0.5;
+    B.mirror(x, z, l / 2 + 0.6, (px, pz) => B.wall(px, pz, l, al, B.R(0.9, 1.3), [0x6b4e34, 0x7a5a3c])); }
+  for (let i = 0; i < 30; i++) { const x = B.R(-110, 0), z = B.R(-110, 110), st = B.r() < 0.3; B.mirror(x, z, 1, (px, pz) => B.crate(px, pz, st, [0x6e5a3e, 0x5f6b45])); }
+  for (let i = 0; i < 50; i++) { const x = B.R(-115, 0), z = B.R(-115, 115), s = B.R(0.8, 2.8); B.mirror(x, z, s + 0.5, (px, pz) => B.rock(px, pz, s)); }
+  for (let i = 0, n = 0; i < 1400 && n < 230; i++) { const x = B.R(-116, 0), z = B.R(-116, 116), st = B.r() < 0.6 ? 'pine' : 'leaf';
+    if (Math.hypot(x, z) < 14) continue; if (B.mirror(x, z, 1.7, (px, pz) => B.tree(px, pz, st))) n++; }
+  B.mountains(world.half + 90, world.half + 150, [0x5d6e58, 0x6c7b62, 0x7f8a75], 35, 70);
+}
+function buildAtoll(B) {
+  // central fort: a ring of walls with four gaps and a watchtower
+  for (let k = 0; k < 16; k++) { if (k % 4 === 1) continue; const a = k / 16 * Math.PI * 2, x = Math.cos(a) * 16, z = Math.sin(a) * 16;
+    const side = Math.abs(Math.cos(a)) > 0.7; B.box(x, z, side ? 1 : 6, side ? 6 : 1, 2.4, 0xb59f7c); }
+  B.building(0, 0, 5, 5, 8, true, [0xa38a66], true);
+  for (const [x, z, w, d, h] of [[-48, -30, 7, 6, 3.2], [-62, 18, 8, 6, 3.4], [-30, 50, 7, 7, 3.2], [-72, -10, 6, 6, 3], [-22, -66, 7, 6, 3.2]])
+    B.mirror(x, z, Math.max(w, d) / 2 + 1.5, (px, pz) => B.cabin(px, pz, w, d, h, [0xc4a27a, 0xb08a60, 0xd2b48a]));
+  for (const [x, z] of [[-40, 8], [-12, -40]]) B.mirror(x, z, 3, (px, pz) => B.building(px, pz, 3.6, 3.6, 6.5, true, WOOD, true));
+  for (let i = 0; i < 34; i++) { const x = B.R(-95, 0), z = B.R(-95, 95), l = B.R(2.5, 5.5), al = B.r() < 0.5;
+    B.mirror(x, z, l / 2 + 0.6, (px, pz) => B.wall(px, pz, l, al, B.R(1.0, 1.6), [0xb8a07a, 0x9c8a6a])); }
+  for (let i = 0; i < 30; i++) { const x = B.R(-95, 0), z = B.R(-95, 95), st = B.r() < 0.3; B.mirror(x, z, 1, (px, pz) => B.crate(px, pz, st)); }
+  for (let i = 0; i < 40; i++) { const x = B.R(-100, 0), z = B.R(-100, 100), s = B.R(0.8, 2.4); B.mirror(x, z, s + 0.5, (px, pz) => B.rock(px, pz, s, [0x8f8a7c, 0x7d796d, 0xa29c8a])); }
+  for (let i = 0, n = 0; i < 900 && n < 90; i++) { const x = B.R(-100, 0), z = B.R(-100, 100);
+    if (B.mirror(x, z, 1.5, (px, pz) => B.tree(px, pz, heightAt(px, pz) < 1.3 ? 'palm' : 'leaf'))) n++; }
+  B.mountains(world.half + 150, world.half + 200, [0x6e8270, 0x7f8f78], 30, 70);
+}
+function buildDowntown(B) {
+  B.fence(5, 0x6d7276);
+  const blocks = [-105, -75, -45, -15, 15, 45, 75, 105];
+  for (const bx of blocks) for (const bz of blocks) {
+    if (bx > 0) continue;
+    if (Math.abs(bx) === 15 && Math.abs(bz) === 15) continue; // plaza
+    if (B.r() < 0.12) continue;
+    if (B.r() < 0.55) {
+      const w = B.R(12, 17), d = B.R(12, 17), h = B.R(12, 28), c = B.pick(TOWERS);
+      B.mirror(bx, bz, 1, (px, pz) => B.building(px, pz, w, d, h, false, [c], true));
+    } else {
+      const w = B.R(7, 9), d = B.R(14, 17), h = B.R(3.6, 5.5), st = B.r() < 0.7, c = B.pick(WALLS), off = B.R(4, 5.5);
+      B.mirror(bx - off, bz, 1, (px, pz) => B.building(px, pz, w, d, h, st, [c], true));
+      const cs = B.r() < 0.5;
+      B.mirror(bx + off + 1.5, bz + B.R(-3, 3), 1.2, (px, pz) => B.crate(px, pz, cs));
+    }
+  }
+  B.rock(0, 0, 2.2, [0x9aa0a4]);
+  for (const [x, z, l, al] of [[-9, -6, 5, true], [-6, 9, 4, false], [-12, 4, 3, false]]) B.mirror(x, z, 0.3, (px, pz) => B.wall(px, pz, l, al, 1.0, CONCRETE));
+  const streets = [-90, -60, -30, 0, 30, 60, 90];
+  for (let i = 0, n = 0; i < 300 && n < 26; i++) {
+    const onX = B.r() < 0.5, s = B.pick(streets), t = B.R(-110, 110), lane = B.pick([-2.4, 2.4]);
+    const x = onX ? t : s + lane, z = onX ? s + lane : t, col = B.pick(CARS);
+    if (x > 4) continue;
+    if (B.mirror(x, z, 2.6, (px, pz) => B.car(px, pz, onX, col))) n++;
+  }
+  for (const s of streets) for (let t = -105; t <= 105; t += 30) B.mirror(s + 4.6, t, 0.4, (px, pz) => B.lamp(px, pz));
+  for (let i = 0; i < 30; i++) { const s = B.pick(streets), t = B.R(-110, 0), onX = B.r() < 0.5, l = B.R(2.5, 4);
+    const x = onX ? t : s + B.R(-3, 3), z = onX ? s + B.R(-3, 3) : t;
+    B.mirror(x, z, l / 2 + 0.6, (px, pz) => B.wall(px, pz, l, !onX, 1.05, [0xd8d3c4, 0xc9a23a])); }
+  B.mountains(world.half + 120, world.half + 170, [0x7a858c, 0x8a9399], 30, 60);
+}
+
+const streetDist = v => Math.abs(v - Math.round(v / 30) * 30);
 const MAPS = {
-  valley: { name: 'Valley', blurb: 'Huge open valley, town in the middle', half: 200, axis: 'x', sky: 0xa8c6d4, fog: [80, 320], hemi: [0xdcefff, 0x5d6b3c, 0.78], sun: [0xfff0d4, 0.85],
+  valley: { name: 'Valley', blurb: 'Huge open valley, town in the middle', half: 200, axis: 'x', sky: 0xb4ccd8, fog: [80, 340], hemi: [0xdcefff, 0x5d6b3c, 0.78], sun: [0xfff0d4, 0.9],
     h: (x, z) => 2.4 * Math.sin(x * 0.028) * Math.cos(z * 0.022) + 1.1 * Math.sin(x * 0.061 + z * 0.047) + 0.6 * Math.cos(z * 0.09 - x * 0.02),
     ground: (c, h, n) => h < -2.6 ? c.setHex(0xbcae84) : c.setHSL(0.22 + n * 0.05, 0.32, 0.34 + n * 0.05 + h * 0.012),
-    build: buildValley, mtn: true },
-  docks: { name: 'Dockyard', blurb: 'Container stacks and cranes, medium size', half: 90, axis: 'x', sky: 0xb9c6cf, fog: [55, 240], hemi: [0xe0ecf5, 0x5b6066, 0.8], sun: [0xfff4e2, 0.85],
-    h: (x, z) => 0.1 * Math.sin(x * 0.21) * Math.cos(z * 0.19),
-    ground: (c, h, n, x, z) => (Math.abs(x) > 93 || Math.abs(z) > 93) ? c.setHSL(0.56, 0.42, 0.34 + n * 0.04) : c.setHSL(0.58, 0.05, 0.36 + n * 0.05),
-    build: buildDocks },
-  sandline: { name: 'Sandline', blurb: 'Tight desert town with flat roofs', half: 75, axis: 'z', sky: 0xdccfb4, fog: [45, 220], hemi: [0xfff1d8, 0x9c7f55, 0.85], sun: [0xffe4b8, 0.95],
+    build: buildValley, mtn: true, grass: 5000 },
+  docks: { name: 'Dockyard', blurb: 'Container stacks and cranes, medium size', half: 90, axis: 'x', sky: 0xbfcbd3, fog: [55, 250], hemi: [0xe0ecf5, 0x5b6066, 0.8], sun: [0xfff4e2, 0.9],
+    h: (x, z) => Math.max(Math.abs(x), Math.abs(z)) > 92 ? -2.4 : 0.1 * Math.sin(x * 0.21) * Math.cos(z * 0.19),
+    ground: (c, h, n) => h < -1 ? c.setHSL(0.1, 0.2, 0.3) : c.setHSL(0.58, 0.05, 0.36 + n * 0.05),
+    build: buildDocks, water: -0.7 },
+  sandline: { name: 'Sandline', blurb: 'Tight desert town with flat roofs', half: 75, axis: 'z', sky: 0xdfd3ba, fog: [45, 230], hemi: [0xfff1d8, 0x9c7f55, 0.85], sun: [0xffe4b8, 1.0],
     h: (x, z) => 0.8 * Math.sin(x * 0.045) * Math.cos(z * 0.05) + 0.35 * Math.sin(x * 0.13 + z * 0.09),
     ground: (c, h, n) => c.setHSL(0.09, 0.36, 0.5 + n * 0.05 + h * 0.02),
     build: buildSandline },
-  frost: { name: 'Frostbite', blurb: 'Snowy hills, pines and bunkers', half: 110, axis: 'x', sky: 0xcdd8e1, fog: [35, 210], hemi: [0xeef5ff, 0x8da0b0, 0.85], sun: [0xf2f6ff, 0.8],
+  frost: { name: 'Frostbite', blurb: 'Snowy hills, pines and bunkers', half: 110, axis: 'x', sky: 0xcfd9e2, fog: [35, 220], hemi: [0xeef5ff, 0x8da0b0, 0.85], sun: [0xf2f6ff, 0.85],
     h: (x, z) => 3.4 * Math.sin(x * 0.03) * Math.cos(z * 0.027) + 1.2 * Math.sin(x * 0.07 - z * 0.05),
-    ground: (c, h, n) => c.setHSL(0.58, 0.18, Math.min(0.95, 0.84 + n * 0.06 + h * 0.008)),
-    build: buildFrost },
-  pit: { name: 'The Pit', blurb: 'Small walled arena, great for 1v1', half: 36, axis: 'x', sky: 0x9fb1bd, fog: [60, 190], hemi: [0xdde8f0, 0x6b5a45, 0.8], sun: [0xfff0d4, 0.9],
+    ground: (c, h, n) => c.setHSL(0.58, 0.18, Math.min(0.92, 0.8 + n * 0.06 + h * 0.008)),
+    build: buildFrost, snow: true },
+  pit: { name: 'The Pit', blurb: 'Small walled arena, great for 1v1', half: 36, axis: 'x', sky: 0xa9bac5, fog: [60, 200], hemi: [0xdde8f0, 0x6b5a45, 0.8], sun: [0xfff0d4, 0.95],
     h: () => 0, ground: (c, h, n) => c.setHSL(0.09, 0.25, 0.36 + n * 0.06),
     build: buildPit },
+  refinery: { name: 'Refinery', blurb: 'Fuel tanks, pipe racks and a flare stack', half: 100, axis: 'x', sky: 0xc9c6b8, fog: [50, 250], hemi: [0xf0ebdc, 0x6b6450, 0.8], sun: [0xffe9c8, 0.95],
+    h: (x, z) => 0.25 * Math.sin(x * 0.05) * Math.cos(z * 0.04),
+    ground: (c, h, n) => c.setHSL(0.1, 0.1, 0.36 + n * 0.06),
+    build: buildRefinery },
+  timber: { name: 'Timberline', blurb: 'Thick forest, cabins and lookout towers', half: 120, axis: 'z', sky: 0xb6c9cf, fog: [30, 200], hemi: [0xdbeadf, 0x4d5a36, 0.78], sun: [0xfff0d0, 0.85],
+    h: (x, z) => 3.0 * Math.cos(x * 0.026) * Math.cos(z * 0.031) + 1.3 * Math.cos(x * 0.071 + z * 0.052),
+    ground: (c, h, n) => c.setHSL(0.24 + n * 0.04, 0.34, 0.27 + n * 0.05 + h * 0.01),
+    build: buildTimber, grass: 6000 },
+  atoll: { name: 'Atoll', blurb: 'Island fort ringed by beach and shallow water', half: 110, axis: 'x', sky: 0xb2d4e2, fog: [70, 320], hemi: [0xe6f6ff, 0x7b8a5a, 0.85], sun: [0xfff3d6, 1.0],
+    h: (x, z) => { const r = Math.hypot(x, z), land = 1 - sstep(64, 98, r); return land * (1.4 + 1.1 * Math.cos(x * 0.05) * Math.cos(z * 0.045) + 0.5 * Math.cos(x * 0.11 + z * 0.07) + 1.4 * (1 - r / 98)) - (1 - land) * 1.4; },
+    ground: (c, h, n) => h < -0.25 ? c.setHSL(0.11, 0.28, 0.42 + n * 0.04) : h < 1.1 ? c.setHSL(0.11, 0.45, 0.64 + n * 0.05) : c.setHSL(0.25 + n * 0.04, 0.4, 0.33 + n * 0.05),
+    build: buildAtoll, water: -0.45, grass: 2500 },
+  downtown: { name: 'Downtown', blurb: 'Tall towers, streets full of cars', half: 120, axis: 'x', sky: 0xbac6cc, fog: [45, 260], hemi: [0xe2ecf2, 0x5a5e62, 0.8], sun: [0xfff2dc, 0.95],
+    h: () => 0, seg: 3,
+    ground: (c, h, n, x, z) => (streetDist(x) < 5 || streetDist(z) < 5) ? c.setHSL(0.6, 0.05, 0.2 + n * 0.03) : c.setHSL(0.1, 0.06, 0.5 + n * 0.05),
+    build: buildDowntown },
 };
+const MAP_IDS = Object.keys(MAPS);
 
 function clearWorld() {
   for (const o of world.objs) { scene.remove(o); o.geometry.dispose(); o.material.dispose(); }
-  world.objs = []; world.boxes = []; world.circles = []; world.shootables = [];
+  world.objs = []; world.boxes = []; world.circles = []; world.shootables = []; world.cratePts = [];
 }
 function loadMap(id) {
   if (!MAPS[id]) id = 'valley';
   const M = MAPS[id];
   clearWorld();
-  world.id = id; world.half = M.half; world.h = M.h;
-  scene.background.setHex(M.sky); scene.fog.color.setHex(M.sky); scene.fog.near = M.fog[0]; scene.fog.far = M.fog[1];
+  world.id = id; world.half = M.half; world.h = M.h; world.water = M.water == null ? null : M.water;
+  const skyC = new THREE.Color(M.sky);
+  skyMat.uniforms.hor.value.copy(skyC);
+  skyMat.uniforms.top.value.copy(skyC).lerp(new THREE.Color(0x3c6ea6), M.snow ? 0.4 : 0.62);
+  scene.fog.color.copy(skyC); scene.fog.near = M.fog[0]; scene.fog.far = M.fog[1];
   hemi.color.setHex(M.hemi[0]); hemi.groundColor.setHex(M.hemi[1]); hemi.intensity = M.hemi[2];
   sun.color.setHex(M.sun[0]); sun.intensity = M.sun[1];
   // terrain
-  const size = M.half * 2 + 2 * Math.max(120, M.half * 0.6), seg = clamp(Math.round(size / 5.5), 40, 116);
+  const size = M.half * 2 + 2 * Math.max(120, M.half * 0.6), seg = clamp(Math.round(size / (M.seg || 5.5)), 40, 170);
   const tr = mulberry(hashStr(id) ^ 99);
   const tg = new THREE.PlaneGeometry(size, size, seg, seg);
   tg.rotateX(-Math.PI / 2);
@@ -281,21 +434,59 @@ function loadMap(id) {
   }
   tg.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
   tg.computeVertexNormals();
-  const terrain = new THREE.Mesh(tg, new THREE.MeshPhongMaterial({ vertexColors: true, flatShading: true, shininess: 0, specular: 0x000000 }));
+  const tm = detail(new THREE.MeshPhongMaterial({ vertexColors: true, shininess: 0, specular: 0x000000 }), M.snow ? 0.12 : 0.3, 0.8);
+  const terrain = new THREE.Mesh(tg, tm);
   terrain.receiveShadow = true; scene.add(terrain); world.objs.push(terrain); world.shootables.push(terrain);
+  if (world.water != null) {
+    const wm = new THREE.MeshPhongMaterial({ color: 0x3d7f95, transparent: true, opacity: 0.8, shininess: 90, specular: 0x9fc3d2, depthWrite: false });
+    const water = new THREE.Mesh(new THREE.PlaneGeometry(size, size), wm); water.rotation.x = -Math.PI / 2; water.position.y = world.water;
+    water.receiveShadow = true; scene.add(water); world.objs.push(water);
+  }
   // props
   const B = makeBuilder(hashStr(id));
   M.build(B);
   if (M.mtn) B.mountains(M.half * 1.25, M.half * 1.45, [0x7f8c6d, 0x8a8f86], 30, 60);
+  // crate spots for battle royale: decided by the map seed, so every browser agrees on them
+  const nCrates = clamp(Math.round(M.half / 3), 10, 56);
+  for (let i = 0; i < 900 && world.cratePts.length < nCrates; i++) {
+    const x = B.R(-M.half + 6, M.half - 6), z = B.R(-M.half + 6, M.half - 6);
+    if (!isClear(x, z, 1.3)) continue;
+    if (world.cratePts.some(([a, b]) => Math.hypot(a - x, b - z) < 9)) continue;
+    world.cratePts.push([x, z]);
+  }
+  // grass and clouds are only looks: not solid, and they stop no bullets
+  const grass = [], gcol = new THREE.Color();
+  for (let i = 0; i < (M.grass || 0); i++) {
+    const x = B.R(-M.half, M.half), z = B.R(-M.half, M.half), h = heightAt(x, z);
+    if (world.water != null && h < 1.1) continue;
+    let blocked = false;
+    for (const b of world.boxes) if (x > b.minX - 0.3 && x < b.maxX + 0.3 && z > b.minZ - 0.3 && z < b.maxZ + 0.3) { blocked = true; break; }
+    if (blocked) continue;
+    M.ground(gcol, h, B.r(), x, z); gcol.offsetHSL(0.01, 0.05, -0.04);
+    const s = B.R(0.5, 1.1);
+    grass.push({ p: [x, h + 0.22 * s, z], s: [0.16 * s, 0.5 * s, 0.16 * s], c: gcol.getHex(), r: [B.R(-0.25, 0.25), B.R(0, 3), B.R(-0.25, 0.25)] });
+  }
+  const clouds = [];
+  for (let k = 0; k < 14; k++) {
+    const a = B.R(0, 6.28), r = B.R(0, M.half * 1.6), cx = Math.cos(a) * r, cz = Math.sin(a) * r, cy = B.R(95, 135);
+    for (let j = 0; j < 5; j++) clouds.push({ p: [cx + B.R(-14, 14), cy + B.R(-2, 3), cz + B.R(-8, 8)], s: [B.R(9, 16), B.R(4, 7), B.R(7, 12)], c: 0xffffff, r: [0, B.R(0, 3), 0] });
+  }
   instanced(B.inst.box, new THREE.BoxGeometry(1, 1, 1), true);
-  instanced(B.inst.win, new THREE.BoxGeometry(1, 1, 1), false, false);
+  instanced(B.inst.win, new THREE.BoxGeometry(1, 1, 1), false, false, { detail: 0.1, shine: 40 });
   instanced(B.inst.trunk, new THREE.CylinderGeometry(0.2, 0.28, 1, 6), true);
-  instanced(B.inst.crown, new THREE.ConeGeometry(1, 1, 7), true);
-  instanced(B.inst.rock, new THREE.DodecahedronGeometry(1, 0), true);
-  instanced(B.inst.mtn, new THREE.ConeGeometry(1, 1, 6), false, false);
+  instanced(B.inst.crown, new THREE.ConeGeometry(1, 1, 7), true, true, { detail: 0.35, scale: 2 });
+  instanced(B.inst.rock, new THREE.DodecahedronGeometry(1, 0), true, true, { detail: 0.3, scale: 1.5 });
+  instanced(B.inst.mtn, new THREE.ConeGeometry(1, 1, 6), false, false, { detail: 0.2, scale: 0.15 });
+  instanced(B.inst.cyl, new THREE.CylinderGeometry(1, 1, 1, 20), true, true, { smooth: true, shine: 30 });
+  instanced(B.inst.wheel, new THREE.CylinderGeometry(1, 1, 1, 10), false, true);
+  instanced(B.inst.roof, new THREE.ConeGeometry(1, 1, 4), true);
+  const gm = instanced(grass, new THREE.ConeGeometry(1, 1, 3), false, false, { detail: 0 });
+  if (gm) gm.receiveShadow = true;
+  const cm = instanced(clouds, new THREE.DodecahedronGeometry(1, 1), false, false, { detail: 0, smooth: true });
+  if (cm) { cm.material.emissive = new THREE.Color(0x8a96a0); cm.material.transparent = true; cm.material.opacity = 0.92; cm.receiveShadow = false; }
   // team spawns: team 0 on the negative side of the map's axis, team 1 mirrored
   const pts = [];
-  for (let i = 0; i < 600 && pts.length < 10; i++) {
+  for (let i = 0; i < 800 && pts.length < 10; i++) {
     const along = -M.half * B.R(0.72, 0.9), across = B.R(-0.55, 0.55) * M.half;
     const x = M.axis === 'x' ? along : across, z = M.axis === 'x' ? across : along;
     if (isClear(x, z, 1.3) && isClear(-x, -z, 1.3)) pts.push([x, z]);

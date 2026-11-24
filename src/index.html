@@ -108,14 +108,101 @@ ol.steps code,ol.steps kbd{
 footer{margin-top:clamp(26px,6vh,46px);max-width:620px;text-align:center;color:var(--muted);font-size:12.5px;line-height:1.6}
 footer b{color:var(--text);font-weight:700}
 footer .sep{margin:16px auto 0;height:1px;max-width:220px;background:var(--line)}
+/* The sign-in corner. Fixed, so it sits in the same place whatever the page
+   is doing underneath, and small enough not to argue with the title. */
+[hidden]{display:none!important}
+.acct{position:fixed;top:12px;right:12px;z-index:30}
+.acct-btn{
+  font:inherit;font-size:12.5px;font-weight:800;letter-spacing:.04em;
+  color:var(--muted);background:rgba(14,22,33,.82);
+  border:1px solid var(--line);border-radius:999px;padding:8px 14px;
+  cursor:pointer;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
+}
+.acct-btn:hover,.acct-btn:focus-visible{color:var(--text);border-color:var(--amber);outline:none}
+.acct-btn.on{color:var(--amber)}
+.acct-panel{
+  position:absolute;top:calc(100% + 8px);right:0;
+  width:min(300px,calc(100vw - 24px));
+  background:linear-gradient(180deg,var(--panel2),var(--panel));
+  border:1px solid var(--line);border-radius:14px;padding:14px;
+  box-shadow:0 18px 44px rgba(0,0,0,.6);text-align:left;
+}
+.acct-panel h2{font-family:var(--display);font-size:22px;margin:0;letter-spacing:.02em;line-height:1}
+.acct-note{font-size:11.5px;color:var(--muted);line-height:1.45;margin:7px 0 0}
+.acct-panel label{display:block;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+  font-weight:800;color:var(--muted);margin:11px 0 4px}
+.acct-panel input{
+  width:100%;font:inherit;font-size:14px;color:var(--text);
+  background:#0a1018;border:1px solid var(--line);border-radius:9px;padding:9px 10px;
+}
+.acct-panel input:focus{border-color:var(--amber);outline:none}
+.acct-row{display:flex;gap:7px;margin-top:12px}
+.acct-row button{
+  flex:1;font:inherit;font-size:12.5px;font-weight:800;cursor:pointer;
+  border-radius:9px;padding:9px 10px;border:1px solid var(--line);
+  background:#0a1018;color:var(--text);
+}
+.acct-row button.go{background:var(--amber);border-color:var(--amber);color:#1a1205}
+.acct-row button:hover:not(:disabled){border-color:var(--amber)}
+.acct-row button:disabled{opacity:.6;cursor:default}
+.acct-say{font-size:12px;line-height:1.45;margin:10px 0 0;color:var(--green)}
+.acct-say.bad{color:#ff8a7a}
+.acct-link{
+  display:block;width:100%;text-align:left;margin-top:11px;
+  font:inherit;font-size:12px;font-weight:700;color:var(--muted);
+  background:none;border:0;padding:0;cursor:pointer;
+}
+.acct-link:hover,.acct-link:focus-visible{color:var(--amber);outline:none}
+
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
 <body>
 
+<div class="acct" id="acct" hidden>
+  <button class="acct-btn" id="acctBtn" type="button" aria-expanded="false" aria-controls="acctPanel">Sign in</button>
+
+  <div class="acct-panel" id="acctPanel" hidden>
+    <h2 id="acctTitle">Arcade account</h2>
+    <p class="acct-note" id="acctNote"></p>
+
+    <div id="acctIn">
+      <label for="acctName">Name</label>
+      <input id="acctName" type="text" autocomplete="username" autocapitalize="none"
+             spellcheck="false" maxlength="16" placeholder="jake">
+      <label for="acctPass">Password</label>
+      <input id="acctPass" type="password" autocomplete="current-password"
+             placeholder="at least 6 characters">
+      <div class="acct-row">
+        <button class="go" id="acctSignIn" type="button">Sign in</button>
+        <button id="acctSignUp" type="button">Make one</button>
+      </div>
+    </div>
+
+    <div id="acctOut" hidden>
+      <button class="acct-link" id="acctChangeBtn" type="button">Change password &rarr;</button>
+      <div id="acctChange" hidden>
+        <label for="acctOld">Current password</label>
+        <input id="acctOld" type="password" autocomplete="current-password">
+        <label for="acctNew">New password</label>
+        <input id="acctNew" type="password" autocomplete="new-password">
+        <div class="acct-row">
+          <button class="go" id="acctSave" type="button">Save</button>
+          <button id="acctCancel" type="button">Cancel</button>
+        </div>
+      </div>
+      <div class="acct-row">
+        <button id="acctSignOut" type="button">Sign out</button>
+      </div>
+    </div>
+
+    <p class="acct-say" id="acctSay" hidden></p>
+  </div>
+</div>
+
 <header>
   <h1>The <em>Arcade</em></h1>
-  <p class="tag"><!--N--> games that run in a browser. Nothing to install, no accounts to make, and once a page has loaded it keeps working with no signal.</p>
+  <p class="tag"><!--N--> games that run in a browser. Nothing to install, and once a page has loaded it keeps working with no signal. An account is optional &mdash; it is what carries your progress to another device.</p>
 </header>
 
 <main>
@@ -147,8 +234,12 @@ footer .sep{margin:16px auto 0;height:1px;max-width:220px;background:var(--line)
 <footer>
   <p><b>On a phone?</b> Open a game, then add it to your home screen &mdash; iPhone: Share, then Add to Home Screen. Android: the browser menu, then Add to Home screen. It opens full screen after that, like an app.</p>
   <div class="sep"></div>
-  <p style="margin-top:16px">Every game here is free, has no ads and takes no payment of any kind. Nothing you do in them leaves your device except Side Pot&rsquo;s connection to the people you are playing with.</p>
+  <p style="margin-top:16px">Every game here is free, has no ads and takes no payment of any kind. Nothing you do in them leaves your device except Side Pot&rsquo;s connection to the people you are playing with, and &mdash; only if you sign in &mdash; whatever your account needs to reach your other devices.</p>
+  <p style="margin-top:14px;font-size:11.5px;opacity:.75">Update 1</p>
 </footer>
 
+<script type="module" src="account/ui.js"></script>
+
+<!--PADNAV-->
 </body>
 </html>

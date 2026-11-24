@@ -22,6 +22,7 @@ const DIR = __dirname;
 const FONTS = path.join(DIR, '..', 'hockey-game', 'vendor', 'fonts-inline.css');
 
 const fonts = fs.readFileSync(FONTS, 'utf8');
+const padnav = fs.readFileSync(path.join(DIR, 'src', 'padnav.js'), 'utf8');
 
 /* ------------------------------------------------------------------ cards -- */
 
@@ -139,6 +140,8 @@ for(const page of pages()){
   html = html.replace('<!--FONTS-->', '<style>\n' + fonts + '\n</style>');
   html = html.replace('<!--GAMES-->', built);
   html = html.replace(/<!--N-->/g, countWord);
+  /* controller support for the menus; the same file every game carries */
+  html = html.replace('<!--PADNAV-->', function(){ return '<script>\n' + padnav + '\n</script>'; });
 
   const dest = path.join(DIR, page.out);
   fs.mkdirSync(path.dirname(dest), { recursive: true });

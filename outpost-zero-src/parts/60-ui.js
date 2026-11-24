@@ -7,33 +7,50 @@ function showOnly(id) { for (const o of OVERLAYS) $(o).hidden = o !== id; }
 MP.myName = cleanName(store.get('name', 'Player' + (10 + ((Math.random() * 89) | 0))));
 $('pname').value = MP.myName;
 $('pname').addEventListener('input', e => { MP.myName = cleanName(e.target.value); store.set('name', MP.myName); });
-$('sens').value = sens; $('vol').value = volume;
+$('sens').value = sens; $('vol').value = volume; $('fpsOn').checked = FPS.on;
 $('sens').addEventListener('input', e => { sens = +e.target.value; store.set('sens', sens); });
 $('vol').addEventListener('input', e => { volume = +e.target.value; store.set('vol', volume); if (master) master.gain.value = volume; });
-function refreshBest() {
-  $('best').textContent = G.round > 1 ? `Solo: you're on round ${G.round}. Each round brings more bots with sharper aim.` : '';
-  $('loSummary').textContent = loadout.map(sl => GUNS[sl.id].name).join(' + ');
-}
+$('fpsOn').addEventListener('change', e => { FPS.on = e.target.checked; store.set('fps', FPS.on); });
+function refreshBest() { $('loSummary').textContent = loadout.map(sl => GUNS[sl.id].name).join(' + '); $('best').textContent = ''; }
 refreshBest();
 
-/* ---------- map chips ---------- */
-function mapChipsHtml(sel, disabled) {
-  return Object.entries(MAPS).map(([id, m]) =>
-    `<button data-map="${id}" class="${id === sel ? 'on' : ''}"${disabled ? ' disabled' : ''}><b>${m.name}</b>${m.blurb}</button>`).join('');
+/* ---------- chips: mode, squad size, bots, map ---------- */
+const OFF_LIMITS = { tdm: 30, ffa: 20, br: 0 };
+const offRules = { kind: store.get('offKind', 'br'), squad: store.get('offSquad', 1) };
+if (!MODE_NAMES[offRules.kind]) offRules.kind = 'br';
+offRules.squad = clamp(offRules.squad | 0 || 1, 1, 4);
+function chipRow(items, sel, attr, disabled) {
+  return items.map(([v, label, sub]) => `<button data-${attr}="${v}" class="${String(v) === String(sel) ? 'on' : ''}"${disabled ? ' disabled' : ''}><b>${label}</b>${sub || ''}</button>`).join('');
 }
-function renderMenuMaps() { $('mapChips').innerHTML = mapChipsHtml(G.map, false); }
+const MODE_ITEMS = [['br', 'Battle royale', 'Drop in, loot crates, last squad standing'], ['tdm', 'Team deathmatch', 'Two teams, respawns, first to the kill limit'], ['ffa', 'Free-for-all', 'Everyone for themselves']];
+const SQUAD_ITEMS = [[1, 'Solos', 'Just you'], [2, 'Duos', 'Squads of 2'], [3, 'Trios', 'Squads of 3'], [4, 'Squads', 'Squads of 4']];
+const DIFF_ITEMS = Object.entries(DIFF).map(([k, d]) => [k, d.name, k === 'easy' ? 'Slow to react' : k === 'normal' ? 'A fair fight' : 'Sharp and fast']);
+function mapChipsHtml(sel, disabled) { return chipRow(MAP_IDS.map(id => [id, MAPS[id].name, MAPS[id].blurb]), sel, 'map', disabled); }
+function renderMenu() {
+  $('modeChips').innerHTML = chipRow(MODE_ITEMS, offRules.kind, 'mode');
+  $('squadChips').innerHTML = chipRow(SQUAD_ITEMS, offRules.squad, 'squad');
+  $('squadRow').hidden = offRules.kind !== 'br';
+  $('diffChips').innerHTML = chipRow(DIFF_ITEMS, G.diff, 'diff');
+  $('mapChips').innerHTML = mapChipsHtml(G.map, false);
+  $('play').textContent = offRules.kind === 'br' ? `Play ${SQUAD_NAMES[offRules.squad].toLowerCase()} vs bots` : `Play ${MODE_NAMES[offRules.kind].toLowerCase()} vs bots`;
+}
+$('modeChips').addEventListener('click', e => { const b = e.target.closest('button[data-mode]'); if (!b) return; offRules.kind = b.dataset.mode; store.set('offKind', offRules.kind); renderMenu(); });
+$('squadChips').addEventListener('click', e => { const b = e.target.closest('button[data-squad]'); if (!b) return; offRules.squad = +b.dataset.squad; store.set('offSquad', offRules.squad); renderMenu(); });
+$('diffChips').addEventListener('click', e => { const b = e.target.closest('button[data-diff]'); if (!b) return; G.diff = b.dataset.diff; store.set('diff', G.diff); renderMenu(); });
 $('mapChips').addEventListener('click', e => {
   const b = e.target.closest('button[data-map]'); if (!b) return;
-  G.map = b.dataset.map; store.set('map', G.map); renderMenuMaps();
+  G.map = b.dataset.map; store.set('map', G.map); renderMenu();
   if (!G.playing) loadMap(G.map);
 });
-renderMenuMaps();
+renderMenu();
 
 /* ---------- entering and leaving play ---------- */
 function uiEnterGame(net) {
   initAudio();
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
   showOnly(null); $('hud').hidden = false;
   G.playing = true;
+  for (const k in keys) keys[k] = false;
   const gesture = !navigator.userActivation || navigator.userActivation.isActive;
   if (net && !gesture) {
     G.paused = true;
@@ -46,18 +63,18 @@ function uiEnterGame(net) {
 function uiPause() {
   if (!G.playing || G.over) return;
   G.paused = true; mouse.l = mouse.r = false;
-  const tdm = G.mode === 'tdm';
+  const net = G.mode === 'net';
   $('pauseEye').textContent = 'Paused';
-  $('pauseTitle').textContent = tdm ? 'Match still running' : 'Holding position';
-  $('pauseText').textContent = tdm ? 'You can still be hit while this is open.' : 'Click below to lock the mouse and get back in.';
-  $('resume').textContent = 'Resume'; $('quitBtn').textContent = tdm ? 'Leave match' : 'Quit to menu';
-  $('pauseNote').textContent = tdm && Net.isHost ? 'You are hosting. Leaving ends the match for everyone.' : '';
+  $('pauseTitle').textContent = net ? 'Match still running' : 'Holding position';
+  $('pauseText').textContent = net ? 'You can still be hit while this is open.' : 'Click below to lock the mouse and get back in.';
+  $('resume').textContent = 'Resume'; $('quitBtn').textContent = net ? 'Leave match' : 'Quit to menu';
+  $('pauseNote').textContent = net && Net.isHost ? 'You are hosting. Leaving ends the match for everyone.' : '';
   $('pause').hidden = false;
 }
 $('resume').addEventListener('click', () => { initAudio(); $('pause').hidden = true; G.paused = false; lock(); canvas.focus(); });
 function toMenu(note) {
   G.playing = false; G.paused = false; G.mode = null;
-  clearSolo(); clearAvatars(); zoneMesh.visible = false;
+  clearOffline(); clearAvatars(); zoneMesh.visible = false;
   if (document.exitPointerLock && locked) document.exitPointerLock();
   $('hud').hidden = true; showOnly('menu');
   refreshBest();
@@ -67,12 +84,16 @@ function toMenu(note) {
 function netReset() {
   Net.close();
   clearTimeout(HS.endTimer); HS.players.clear(); HS.state = 'lobby'; HS.order = 0;
-  MP.me = null; MP.players = new Map(); MP.state = 'idle'; MP.lobby = null;
+  MP.me = null; MP.players = new Map(); MP.state = 'idle'; MP.lobby = null; FPS.ping = null;
 }
-$('quitBtn').addEventListener('click', () => { if (G.mode === 'tdm') netReset(); toMenu(); });
-$('again').addEventListener('click', () => { uiEnterGame(false); startSolo(); });
-$('endMenu').addEventListener('click', () => { if (G.mode === 'tdm' || Net.peer) netReset(); toMenu(); });
-$('play').addEventListener('click', () => { uiEnterGame(false); startSolo(); });
+function startOfflineGame() {
+  G.rules = { kind: offRules.kind, squad: offRules.kind === 'br' ? offRules.squad : 1, limit: OFF_LIMITS[offRules.kind] };
+  uiEnterGame(false); startOffline();
+}
+$('quitBtn').addEventListener('click', () => { if (G.mode === 'net') netReset(); toMenu(); });
+$('again').addEventListener('click', startOfflineGame);
+$('endMenu').addEventListener('click', () => { if (G.mode === 'net' || Net.peer) netReset(); toMenu(); });
+$('play').addEventListener('click', startOfflineGame);
 
 /* ---------- loadout ---------- */
 let loSlot = 0, loReturn = 'menu';
@@ -83,18 +104,19 @@ $('pauseLoadout').addEventListener('click', () => openLoadout('pause'));
 $('loTabs').addEventListener('click', e => { const b = e.target.closest('button[data-s]'); if (!b) return; loSlot = +b.dataset.s; renderLoadout(); });
 $('loGuns').addEventListener('click', e => {
   const b = e.target.closest('button[data-g]'); if (!b) return;
-  if (loadout[loSlot].id !== b.dataset.g) loadout[loSlot] = { id: b.dataset.g, att: defaultAtt(b.dataset.g) };
+  if (loadout[loSlot].id !== b.dataset.g) loadout[loSlot] = { id: b.dataset.g, att: defaultAtt(b.dataset.g), skin: loadout[loSlot].skin || 'factory' };
   renderLoadout();
 });
 $('loAtts').addEventListener('click', e => {
   const b = e.target.closest('button[data-cat]'); if (!b) return;
   loadout[loSlot].att[b.dataset.cat] = b.dataset.v; renderLoadout();
 });
+$('loSkins').addEventListener('click', e => { const b = e.target.closest('button[data-skin]'); if (!b) return; loadout[loSlot].skin = b.dataset.skin; renderLoadout(); });
 $('loReset').addEventListener('click', () => { loadout[loSlot].att = defaultAtt(loadout[loSlot].id); renderLoadout(); });
 $('loDone').addEventListener('click', () => {
   saveLoadout(); refreshBest();
   if (G.playing) {
-    if (G.mode === 'solo') { equip(); toast('LOADOUT SWAPPED'); }
+    if (G.mode === 'bots') { equip(); toast('LOADOUT SWAPPED'); }
     else { pendingLoadout = true; toast('NEW LOADOUT ON NEXT SPAWN'); }
   }
   showOnly(loReturn);
@@ -116,9 +138,10 @@ function renderLoadout() {
       ch.map(v => `<button data-cat="${cat}" data-v="${v}" class="${v === sel ? 'on' : ''}">${table[v].name}</button>`).join('')
     }</div><div class="attdesc">${table[sel].desc || ''}</div></div></div>`;
   }).join('');
+  $('loSkins').innerHTML = SKIN_IDS.map(k => `<button data-skin="${k}" class="sw${k === sl.skin ? ' on' : ''}" aria-label="${SKINS[k].name} skin"><i style="background:linear-gradient(135deg,${SKINS[k].sw[0]} 50%,${SKINS[k].sw[1]} 50%)"></i>${SKINS[k].name}</button>`).join('');
   const s = gunStats(id, sl.att), base = gunStats(id, defaultAtt(id));
   $('loName').textContent = GUNS[id].name;
-  $('loSub').textContent = `${GUNS[id].cls} · ${modSummary(sl)}`;
+  $('loSub').textContent = `${GUNS[id].cls} · ${SKINS[sl.skin || 'factory'].name} · ${modSummary(sl)}`;
   const bb = statBars(base);
   $('loStats').innerHTML = statBars(s).map(([label, v, txt], i) => {
     const b = bb[i][1], cv = Math.round(v * 100), bv = Math.round(b * 100);
@@ -128,7 +151,7 @@ function renderLoadout() {
     else bars = `<i style="width:${cv}%"></i><i class="dn" style="left:${cv}%;width:${bv - cv}%"></i>`;
     return `<div class="sb"><span>${label}</span><span class="tr">${bars}</span><span>${txt}</span></div>`;
   }).join('');
-  $('loNote').textContent = G.mode === 'tdm' && G.playing ? 'Changes take effect the next time you spawn.' : 'Green is better than this gun with no mods, red is worse.';
+  $('loNote').textContent = G.mode === 'net' && G.playing ? 'Changes take effect the next time you spawn.' : 'Green is better than this gun with no mods, red is worse. Skins only change the look.';
 }
 
 /* ---------- joining ---------- */
@@ -145,7 +168,7 @@ $('joinGo').addEventListener('click', () => {
   uiJoinStatus('Connecting to ' + code + '…');
   $('joinGo').disabled = true;
   Net.onClientMsg = clientHandle;
-  Net.onDrop = () => { const was = G.mode === 'tdm' || MP.lobby; netReset(); toMenu(was ? 'Lost the connection to the host.' : undefined); };
+  Net.onDrop = () => { const was = G.mode === 'net' || MP.lobby; netReset(); toMenu(was ? 'Lost the connection to the host.' : undefined); };
   Net.join(code, () => { $('joinGo').disabled = false; uiJoinStatus('Connected. Waiting for the lobby…'); Net.sendHost({ t: 'hello', name: MP.myName }); },
     msg => { $('joinGo').disabled = false; uiJoinStatus(msg, true); });
 });
@@ -161,7 +184,8 @@ $('hostBtn').addEventListener('click', () => {
   setLobbyStatus('Getting a match code…');
   Net.onHostMsg = hostHandle; Net.onJoin = () => {}; Net.onLeave = hostLeave;
   Net.host(code => {
-    MP.me = 'H'; HS.state = 'lobby'; HS.map = G.map; HS.limit = +$('scoreLimit').value;
+    MP.me = 'H'; HS.state = 'lobby'; HS.map = G.map;
+    HS.rules = cleanRules({ kind: offRules.kind, squad: offRules.kind === 'br' ? offRules.squad : 2, limit: +$('scoreLimit').value });
     hostAddPlayer('H', MP.myName);
     broadcastLobby();
   }, msg => setLobbyStatus(msg, true));
@@ -173,26 +197,37 @@ function uiShowLobby() {
   if (!$('loadout').hidden) return; // don't yank someone out of the loadout screen
   showOnly('lobby'); $('hud').hidden = true;
   if (!G.playing && world.id !== L.map) loadMap(L.map);
+  const ru = cleanRules(L.rules), host = Net.isHost;
+  $('lobbyEye').textContent = 'Online match · ' + modeLabel(ru).toLowerCase();
   $('lobbyCode').textContent = L.code || Net.code || '----';
   $('inviteLink').value = inviteUrl(L.code || Net.code || '');
-  $('lobbyTeams').innerHTML = teamsHtml(L.players, false);
-  const host = Net.isHost;
+  const list = L.players.map(p => ({ name: p.name, team: p.team, k: p.k, d: p.d, me: p.id === MP.me, tag: p.id === 'H' ? 'host' : '' }));
+  $('lobbyTeams').innerHTML = ru.kind === 'ffa' ? ffaTable(list) : teamsHtml(list, false);
   $('hostCtl').hidden = !host;
+  $('lobbyModes').innerHTML = chipRow(MODE_ITEMS, ru.kind, 'mode', !host);
+  $('lobbySquad').innerHTML = chipRow(SQUAD_ITEMS, ru.squad, 'squad', !host);
+  $('lobbySquadRow').hidden = ru.kind !== 'br';
+  $('limitRow').hidden = ru.kind === 'br';
+  $('shuffleBtn').hidden = ru.kind === 'ffa';
   $('lobbyMaps').innerHTML = mapChipsHtml(L.map, !host);
-  $('scoreLimit').value = String(L.limit);
-  $('lobbyMapNote').textContent = `${MAPS[L.map].name}: ${MAPS[L.map].blurb.toLowerCase()} · first team to ${L.limit} kills, ${MATCH_MINUTES} minute cap.`;
+  $('scoreLimit').value = String(ru.limit);
+  const T = teamCountFor(ru, L.players.length);
+  $('lobbyMapNote').textContent = `${MAPS[L.map].name}: ${MAPS[L.map].blurb.toLowerCase()} · ` + (ru.kind === 'br'
+    ? `${SQUAD_NAMES[ru.squad].toLowerCase()}, the zone closes in, crates hold guns and armor, no respawns.`
+    : ru.kind === 'tdm' ? `first team to ${ru.limit} kills, ${MATCH_MINUTES} minute cap.` : `first to ${ru.limit} kills, ${MATCH_MINUTES} minute cap.`);
   $('startBtn').hidden = !host;
-  $('startBtn').disabled = L.players.length < 2;
+  $('startBtn').disabled = !(L.players.length >= 2 && T >= 2);
   if (L.state === 'match' && !G.playing) setLobbyStatus('A match is running. You will drop in in a moment.');
-  else if (host) setLobbyStatus(L.players.length < 2 ? 'Send the code to a friend. You need at least two players to start.' : `${L.players.length} players. Teams stay even as people join.`);
+  else if (host) setLobbyStatus(L.players.length < 2 ? 'Send the code to friends. You need at least two players to start.'
+    : T < 2 ? `Everyone fits in one squad of ${ru.squad}. Pick a smaller squad size, or wait for more players.`
+    : ru.kind === 'ffa' ? `${L.players.length} players, everyone on their own.` : `${L.players.length} players in ${T} teams. Teams stay even as people join.`);
   else setLobbyStatus('Waiting for the host to start the match.');
 }
-$('lobbyMaps').addEventListener('click', e => {
-  const b = e.target.closest('button[data-map]'); if (!b || !Net.isHost) return;
-  HS.map = b.dataset.map; broadcastLobby();
-});
-$('scoreLimit').addEventListener('change', e => { if (!Net.isHost) return; HS.limit = +e.target.value; broadcastLobby(); });
-$('shuffleBtn').addEventListener('click', () => { if (!Net.isHost) return; hostEvenTeams(true); broadcastLobby(); });
+$('lobbyMaps').addEventListener('click', e => { const b = e.target.closest('button[data-map]'); if (!b || !Net.isHost) return; HS.map = b.dataset.map; broadcastLobby(); });
+$('lobbyModes').addEventListener('click', e => { const b = e.target.closest('button[data-mode]'); if (!b || !Net.isHost) return; HS.rules = cleanRules({ ...HS.rules, kind: b.dataset.mode }); hostAssignTeams(false); broadcastLobby(); });
+$('lobbySquad').addEventListener('click', e => { const b = e.target.closest('button[data-squad]'); if (!b || !Net.isHost) return; HS.rules = cleanRules({ ...HS.rules, squad: +b.dataset.squad }); hostAssignTeams(false); broadcastLobby(); });
+$('scoreLimit').addEventListener('change', e => { if (!Net.isHost) return; HS.rules = cleanRules({ ...HS.rules, limit: +e.target.value }); broadcastLobby(); });
+$('shuffleBtn').addEventListener('click', () => { if (!Net.isHost) return; hostAssignTeams(true); broadcastLobby(); });
 $('startBtn').addEventListener('click', () => { if (Net.isHost) hostStartMatch(); });
 $('leaveBtn').addEventListener('click', () => { netReset(); toMenu(); });
 $('copyLink').addEventListener('click', () => {
@@ -208,5 +243,5 @@ loadMap(G.map);
   if (j && /^[A-Za-z]{4}$/.test(j)) { showOnly('joinov'); $('joinCode').value = j.toUpperCase(); uiJoinStatus('Check your name on the main menu, then press Join.'); }
 }
 // Test hook for driving the game from a script; only exists with ?ozdebug in the address.
-if (/[?&]ozdebug\b/.test(location.search)) window.__oz = { P, G, MP, HS, guns: () => guns, fire: () => fire(), mpSend };
+if (/[?&]ozdebug\b/.test(location.search)) window.__oz = { world, P, G, MP, HS, bots: () => bots, crates: () => crates, groundGuns: () => groundGuns, guns: () => guns, fire: () => fire(), mpSend, interact, loadMap, FPS };
 requestAnimationFrame(frame);
