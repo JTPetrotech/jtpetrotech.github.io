@@ -275,22 +275,39 @@ function uvCyl(r, l, s = 8) {
   for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 6.28 * r * UVK, uv.getY(i) * l * UVK);
   c.rotateX(Math.PI / 2); return c;
 }
+// gun materials: smooth shaded with a bit of sheen, so metal reads as metal
+const gunMats = {};
+const gm = (c, shin = 34, spec = 0x3c3c3c) => gunMats[c + ':' + shin] || (gunMats[c + ':' + shin] = new THREE.MeshPhongMaterial({ color: c, shininess: shin, specular: spec }));
+function addLimb(parent, a, b, r1, r2, m) {
+  const d = new THREE.Vector3().subVectors(b, a), me = new THREE.Mesh(new THREE.CylinderGeometry(r2, r1, d.length(), 10), m);
+  me.position.copy(a).add(b).multiplyScalar(.5); me.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize()); parent.add(me); return me;
+}
 // worldModel: a full-size copy for the ground (crates, dropped guns) instead of the in-hand view
 function makeGunModel(id, att, skin, worldModel) {
   const def = GUNS[id], sh = def.shape, g = new THREE.Group(), sk = skinMats(skin);
-  const metal = sk ? sk.metal : pm(0x2a2e33), dark = sk && sk.dark ? sk.dark : pm(0x1d2024), glove = pm(0x262b2f), furn = sk ? sk.furn : pm(sh.furn);
+  const metal = sk ? sk.metal : gm(0x2c2f33, 40, 0x555555), dark = sk && sk.dark ? sk.dark : gm(0x1c1e21, 26), glove = gm(0x2f2b26, 6, 0x111111), furn = sk ? sk.furn : gm(sh.furn, 14, 0x222222);
+  const steel = gm(0x16181a, 70, 0x777777), rubber = gm(0x141414, 4, 0x0a0a0a), sleeve = gm(0x4b5139, 3, 0x0a0a0a), detail = !worldModel;
+  const V = (x, y, z) => new THREE.Vector3(x, y, z);
   const add = (geo, m, x, y, z, rx = 0, parent = g) => { const me = new THREE.Mesh(geo, m); me.position.set(x, y, z); me.rotation.x = rx; parent.add(me); return me; };
   const Bx = uvBox, Cy = uvCyl;
   let top, front, muzzleZ, ironFrontZ, ironRearZ, opticZ, magMesh = null;
   if (def.pistol) {
     const long = def.revolver ? .06 : 0;
-    add(Bx(.04, .045, .21 + long), metal, 0, 0, -.02 - long / 2);
+    const slide = add(Bx(.04, .045, .21 + long), metal, 0, 0, -.02 - long / 2);
+    if (!def.revolver) { for (let i = 0; i < 5; i++) for (const s of [-1, 1]) add(Bx(.002, .034, .004), dark, s * .0205, .002, .075 + i * .009 + long / 2, 0, slide); add(Bx(.042, .012, .045), dark, 0, .006, -.025 + long / 2, 0, slide); }
+    else { add(Bx(.012, .02, .02), steel, 0, .028, .07, -.5); }
+    add(Bx(.006, .006, .05), dark, 0, -.068, -.025); add(Bx(.006, .028, .006), dark, 0, -.054, -.05); add(Bx(.005, .02, .006), steel, 0, -.052, -.012, .3);
     add(Bx(.036, .03, .16), dark, 0, -.035, -.03);
     add(Bx(.034, .11, .05), furn, 0, -.09, .045, -.22);
     add(Cy(.009, .03), dark, 0, .004, -.135 - long);
     if (def.revolver) add(Cy(.026, .05, 8), metal, 0, -.008, .0);
     if (def.mp) { magMesh = add(Bx(.03, .1, .035), dark, 0, -.16, .055, -.22); add(Bx(.012, .012, .16), dark, 0, -.03, .14); add(Bx(.012, .06, .012), dark, 0, -.06, .22); }
-    if (!worldModel) { add(Bx(.07, .07, .09), glove, 0, -.1, .05); add(Bx(.065, .05, .07), glove, 0, -.075, .0); }
+    if (!worldModel) {
+      add(Bx(.062, .07, .085), glove, 0, -.1, .05); add(Bx(.06, .045, .06), glove, -.012, -.08, .0);
+      addLimb(g, V(.005, -.14, .085), V(.06, -.3, .38), .036, .046, sleeve); addLimb(g, V(-.02, -.13, .07), V(-.13, -.3, .36), .034, .045, sleeve);
+      addLimb(g, V(.006, -.125, .075), V(.012, -.14, .1), .038, .04, glove);
+    }
+    g.userData.slide = def.revolver ? null : slide;
     top = .0225; muzzleZ = -.15 - long; ironFrontZ = -.115 - long; ironRearZ = .07; opticZ = -.01; front = -.12;
   } else {
     const L = sh.L, H = sh.H, [gl, gh] = sh.guard;
@@ -303,6 +320,15 @@ function makeGunModel(id, att, skin, worldModel) {
     muzzleZ = front - gl * 0.4 - bl;
     add(Bx(.03, .012, L + gl * .6), dark, 0, top + .006, -gl * .3);
     add(Bx(.072, .02, .05), dark, 0, .01, L * .1); // ejection port
+    add(Bx(.074, .004, .055), steel, .0, .022, L * .1);
+    add(Bx(.05, .012, .022), dark, 0, H / 2 + .004, L / 2 - .015); // charging handle
+    add(Bx(.062, .034, .08), metal, 0, -H / 2 - .012, front + .12); // magwell
+    add(Bx(.006, .006, .075), dark, 0, -H / 2 - .032, L / 2 - .14); add(Bx(.006, .03, .006), dark, 0, -H / 2 - .018, L / 2 - .175);
+    add(Bx(.005, .022, .006), steel, 0, -H / 2 - .016, L / 2 - .14, .25); // trigger
+    add(Bx(.004, .01, .02), steel, .037, -.01, L / 2 - .12); // selector
+    if (detail) { const rl = L + gl * .6, n = Math.floor(rl / .022); for (let i = 0; i < n; i++) add(Bx(.033, .0035, .006), dark, 0, top + .0135, -gl * .3 - rl / 2 + (i + .5) * rl / n); }
+    if (detail) for (let i = 0; i < 3; i++) for (const s of [-1, 1]) add(Bx(.002, gh * .35, .03), dark, s * .0335, -.004, front - gl * (i + 1) / 4);
+    add(Cy(.02, .03, 10), dark, 0, .006, front - gl * .4 - Math.min(.06, bl * .3)); // gas block
     top += .012;
     add(Bx(.045, .11, .05), furn, 0, -H / 2 - .045, L / 2 - .08, -.3);
     const magScale = att.mag === 'ext' ? 1.45 : 1;
@@ -315,8 +341,8 @@ function makeGunModel(id, att, skin, worldModel) {
     else if (sh.mag === 'can') { magMesh = add(Bx(.1, .11 * magScale, .13), furn, .03, -H / 2 - .05 * magScale, front + .13); add(Bx(.03, .03, .03), dark, -.03, 0, 0, 0, magMesh); }
     if (att.mag === 'fast' && magMesh) { const band = add(Bx(.056, .02, .09), pm(0xff9a3c), 0, 0, 0, 0, magMesh); band.scale.set(1, 1, sh.mag === 'tube' ? 2 : 1); }
     const stk = att.stock === 'light' ? 'wire' : att.stock === 'heavy' ? 'thick' : sh.stock;
-    if (stk === 'full') add(Bx(.06, .11, .24), furn, 0, -.02, L / 2 + .12);
-    else if (stk === 'thick') { add(Bx(.068, .13, .3), furn, 0, -.025, L / 2 + .15); add(Bx(.05, .04, .14), furn, 0, .045, L / 2 + .13); }
+    if (stk === 'full') { add(Bx(.06, .11, .24), furn, 0, -.02, L / 2 + .12); add(Bx(.062, .115, .02), rubber, 0, -.02, L / 2 + .25); add(Cy(.016, .1, 10), dark, 0, .005, L / 2 + .04); }
+    else if (stk === 'thick') { add(Bx(.068, .13, .3), furn, 0, -.025, L / 2 + .15); add(Bx(.05, .04, .14), furn, 0, .045, L / 2 + .13); add(Bx(.07, .135, .022), rubber, 0, -.025, L / 2 + .31); }
     else { add(Bx(.016, .016, .22), dark, 0, 0, L / 2 + .11); add(Bx(.016, .08, .016), dark, 0, -.03, L / 2 + .22); }
     const uz = front - gl / 2, uy = -gh / 2 - .004;
     if (att.under === 'vgrip') add(Bx(.03, .09, .035), dark, 0, uy - .045, uz);
@@ -324,9 +350,15 @@ function makeGunModel(id, att, skin, worldModel) {
     else if (att.under === 'laser') { add(Bx(.025, .025, .08), dark, .042, -.01, uz); add(new THREE.SphereGeometry(.004, 6, 4), new THREE.MeshBasicMaterial({ color: 0xff3030 }), .042, -.01, uz - .042); }
     if (sh.mag === 'tube') add(Bx(.075, .06, .12), furn, 0, -.05, front - .1);
     if (!worldModel) {
-      add(Bx(.075, .065, .1), glove, 0, -H / 2 - .055, L / 2 - .07);
-      if (att.under !== 'vgrip') add(Bx(.085, .06, .11), glove, 0, -gh / 2 - .03, uz);
-      else add(Bx(.06, .06, .07), glove, 0, uy - .06, uz);
+      const gy = -H / 2 - .055, gz = L / 2 - .07;
+      add(Bx(.07, .065, .095), glove, 0, gy, gz); add(Bx(.02, .02, .06), glove, -.035, gy + .03, gz - .05); // grip hand, trigger finger
+      addLimb(g, V(.01, gy - .03, gz + .04), V(.1, -.28, L / 2 + .3), .038, .047, sleeve);
+      addLimb(g, V(.01, gy - .025, gz + .03), V(.025, gy - .04, gz + .08), .04, .042, glove);
+      const ly = att.under === 'vgrip' ? uy - .06 : -gh / 2 - .03;
+      if (att.under !== 'vgrip') { add(Bx(.08, .055, .1), glove, 0, ly, uz); add(Bx(.016, .03, .09), glove, .04, ly + .03, uz); }
+      else add(Bx(.06, .06, .07), glove, 0, ly, uz);
+      addLimb(g, V(-.02, ly - .02, uz + .04), V(-.16, -.27, uz + .36), .036, .046, sleeve);
+      addLimb(g, V(-.02, ly - .02, uz + .04), V(-.035, ly - .035, uz + .085), .04, .042, glove);
     }
     ironFrontZ = front - gl + .025; ironRearZ = L / 2 - .04; opticZ = -L * 0.12;
   }
@@ -336,6 +368,7 @@ function makeGunModel(id, att, skin, worldModel) {
   else if (att.muzzle === 'comp') { add(Bx(.035, .035, .06), metal, 0, .006, mz - .03); mz -= .06; }
   else if (att.muzzle === 'brake') { add(Bx(.05, .03, .07), metal, 0, .006, mz - .035); mz -= .07; }
   else if (att.muzzle === 'choke') { add(Cy(.02, .05), metal, 0, .006, mz - .025); mz -= .05; }
+  else if (!def.pistol && !def.tube) { add(Cy(.017, .045, 10), dark, 0, .006, mz - .022); if (detail) for (let i = 0; i < 4; i++) { const sl = add(Bx(.036, .003, .03), steel, 0, .006, mz - .025); sl.rotation.z = i * Math.PI / 4; } mz -= .045; }
   let sightY;
   const glassMat = () => new THREE.MeshBasicMaterial({ color: 0x9fd0e0, transparent: true, opacity: .14, depthWrite: false });
   const red = new THREE.MeshBasicMaterial({ color: 0xff2a2a });
@@ -390,10 +423,10 @@ function makeGunModel(id, att, skin, worldModel) {
   const hip = def.pistol ? new THREE.Vector3(.15, -.15, -.36) : new THREE.Vector3(.2, -.2, -.52);
   const adsZ = def.pistol ? -.32 : att.optic === 'iron' ? -.26 : (att.optic === 'x3' || att.optic === 'x6') ? -.22 : -.27;
   g.visible = false; wScene.add(g);
-  return { group: g, flash, muzzle: new THREE.Vector3(0, .008, mz), hip, adsPos: new THREE.Vector3(0, -sightY, adsZ), mag: magMesh, magY: magMesh ? magMesh.position.y : 0,
+  return { group: g, flash, slide: g.userData.slide || null, muzzle: new THREE.Vector3(0, .008, mz), hip, adsPos: new THREE.Vector3(0, -sightY, adsZ), mag: magMesh, magY: magMesh ? magMesh.position.y : 0,
     eject: new THREE.Vector3(.04, .02, def.pistol ? -.02 : .02) };
 }
-const sharedMats = () => { const s = new Set(Object.values(matCache)); for (const k in skinCache) { s.add(skinCache[k].metal); if (skinCache[k].dark) s.add(skinCache[k].dark); } return s; };
+const sharedMats = () => { const s = new Set([...Object.values(matCache), ...Object.values(gunMats)]); for (const k in skinCache) { s.add(skinCache[k].metal); if (skinCache[k].dark) s.add(skinCache[k].dark); } return s; };
 function disposeGunModel(m) {
   if (!m) return;
   m.group.parent && m.group.parent.remove(m.group);

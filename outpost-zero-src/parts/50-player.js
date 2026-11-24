@@ -279,6 +279,7 @@ function updatePlayer(dt, input) {
   gp.z += kick * (heavy ? .09 : .035) * (1 - ease * .5);
   let rx = kick * (heavy ? .18 : .06) * (1 - ease * .6), rz = swayX * 2, ry = swayX * 1.5;
   if (g.m.mag) g.m.mag.position.y = g.m.magY;
+  if (g.m.slide) { if (g.m.slideZ == null) g.m.slideZ = g.m.slide.position.z; g.m.slide.position.z = g.m.slideZ + Math.min(1, kick * 2.2) * .03 + (g.magLeft === 0 ? .03 : 0); }
   if (reloading) {
     const k = 1 - (reloadEnd - G.time) / s.reload, d = Math.sin(Math.PI * clamp(k, 0, 1));
     gp.y -= d * .1; rx -= d * .45; rz += d * .5;

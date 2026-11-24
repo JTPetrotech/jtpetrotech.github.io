@@ -92,6 +92,15 @@ function shell(p) { // in the in-hand scene, flies off to the right
   fx.push({ o: m, life: .5, max: .5, kind: 'shell', v: new THREE.Vector3(R(.9, 1.4), R(.9, 1.5), R(-.2, .3)), spin: R(10, 25), sc: wScene });
 }
 const shardGeo = new THREE.BoxGeometry(1, 1, 1);
+// a knockout: a burst of dust and grit where they stood
+function knockout(p) {
+  for (let i = 0; i < 3; i++) puff(new THREE.Vector3(p.x + R(-.4, .4), p.y + R(.3, 1.3), p.z + R(-.4, .4)), [0xa49a88, 0x8a8376, 0xc2b8a3][i], R(.9, 1.4), R(.7, 1.1), .5);
+  for (let i = 0; i < 8; i++) {
+    const m = new THREE.Mesh(shardGeo, pm(i % 2 ? 0x6e675a : 0x8b8270)); const s = R(.03, .07); m.scale.setScalar(s);
+    m.position.set(p.x + R(-.2, .2), p.y + R(.6, 1.4), p.z + R(-.2, .2)); scene.add(m);
+    fx.push({ o: m, life: 1, max: 1, kind: 'shard', v: new THREE.Vector3(R(-2, 2), R(1, 3.5), R(-2, 2)), spin: new THREE.Vector3(R(-9, 9), R(-9, 9), R(-9, 9)), s, sc: scene });
+  }
+}
 function scrapBurst(p, accent = 0xffb547, body = 0x6b7680) {
   const cols = [body, 0x2e3439, accent, 0x9aa4ad];
   for (let i = 0; i < 26; i++) {
@@ -106,6 +115,7 @@ function scrapBurst(p, accent = 0xffb547, body = 0x6b7680) {
   puff(new THREE.Vector3(p.x, p.y + 1, p.z), 0x5c6064, 1.4, 1.6, 1.2);
 }
 function updateFx(dt) {
+  updateFallen(dt);
   for (let i = fx.length - 1; i >= 0; i--) {
     const f = fx[i]; f.life -= dt; const k = 1 - f.life / f.max;
     if (f.kind === 'line') f.o.material.opacity = .9 * (1 - k);
@@ -122,7 +132,7 @@ function updateFx(dt) {
     if (f.life <= 0) { f.sc.remove(f.o); if (f.kind === 'line') f.o.geometry.dispose(); if (f.kind === 'line' || f.kind === 'puff') f.o.material.dispose(); fx.splice(i, 1); }
   }
 }
-function clearFx() { fx.forEach(f => f.sc.remove(f.o)); fx.length = 0; clearHoles(); }
+function clearFx() { fx.forEach(f => f.sc.remove(f.o)); fx.length = 0; clearHoles(); clearFallen(); }
 
 /* ---------- teams ---------- */
 const TEAM = [
@@ -134,56 +144,201 @@ const TEAM = [
 const teamCss = t => (TEAM[t % TEAM.length] || TEAM[0]).css;
 const teamHex = t => (TEAM[t % TEAM.length] || TEAM[0]).hex;
 
-/* ---------- the robot body ---------- */
-const robotGeo = { torso: new THREE.BoxGeometry(.8, .9, .5), plate: new THREE.BoxGeometry(.62, .5, .08), pelvis: new THREE.BoxGeometry(.6, .25, .4), leg: new THREE.BoxGeometry(.24, .62, .27),
-  head: new THREE.BoxGeometry(.46, .38, .42), visor: new THREE.BoxGeometry(.36, .09, .04), arm: new THREE.BoxGeometry(.18, .62, .2), pad: new THREE.BoxGeometry(.28, .14, .3),
-  gun: new THREE.BoxGeometry(.09, .12, .6), ant: new THREE.BoxGeometry(.03, .25, .03), pack: new THREE.BoxGeometry(.55, .55, .22), band: new THREE.BoxGeometry(.82, .12, .52), boot: new THREE.BoxGeometry(.27, .14, .36) };
-// tag: what a bullet hitting this part reports. Parts go into world.shootables.
-function buildRobot(bodyCol, visorCol, tag, bandCol) {
-  const g = new THREE.Group();
-  const mb = new THREE.MeshPhongMaterial({ color: bodyCol, flatShading: true, shininess: 22, specular: 0x333333 });
-  const md = new THREE.MeshPhongMaterial({ color: 0x2e3439, flatShading: true, shininess: 10 });
-  const mv = new THREE.MeshBasicMaterial({ color: visorCol });
-  const parts = [];
-  const part = (geo, m, x, y, z, p, parent = g) => {
-    const me = new THREE.Mesh(geo, m); me.position.set(x, y, z); me.castShadow = true;
-    if (p) { me.userData = Object.assign({ part: p }, tag); parts.push(me); }
-    parent.add(me); return me;
-  };
-  part(robotGeo.torso, mb, 0, 1.2, 0, 'body');
-  part(robotGeo.plate, md, 0, 1.25, .27, 'body');
-  part(robotGeo.pack, md, 0, 1.25, -.34, 'body');
-  part(robotGeo.pelvis, md, 0, .72, 0, 'body');
-  if (bandCol != null) part(robotGeo.band, new THREE.MeshBasicMaterial({ color: bandCol }), 0, 1.5, 0, 'body');
-  const head = part(robotGeo.head, mb, 0, 1.86, 0, 'head');
-  part(robotGeo.visor, mv, 0, 1.88, .215, 'head');
-  part(robotGeo.ant, md, .14, 2.15, -.08, null);
-  const legs = [];
-  for (const s of [-1, 1]) {
-    const pivot = new THREE.Group(); pivot.position.set(s * .17, .66, 0); g.add(pivot);
-    part(robotGeo.leg, md, 0, -.31, 0, 'body', pivot);
-    part(robotGeo.boot, mb, 0, -.6, .04, null, pivot);
-    legs.push(pivot);
-    part(robotGeo.pad, mb, s * .5, 1.6, .02, 'body');
+/* ---------- the soldier body ----------
+   Each body part is a handful of shapes merged into one mesh with the colours
+   baked into its vertices, and shared by every soldier dressed the same, so a
+   swarm of 120 costs 7 draw calls a head rather than 30. */
+const UNIFORMS = [0x5d6347, 0x8c7d5c, 0x5a6058, 0x4b5563, 0x6b5f4a, 0x3f4a3c];
+const SKINS_TONE = [0xe8bf9c, 0xd09a74, 0xa8714c, 0x7a4e30, 0x5a3a24];
+const _bm = new THREE.Matrix4(), _bq = new THREE.Quaternion(), _bs = new THREE.Vector3(), _bp = new THREE.Vector3(), _by = new THREE.Vector3(0, 1, 0);
+function mergeColored(list) {
+  let n = 0; const gs = [];
+  for (const it of list) { const g = it.geo.index ? it.geo.toNonIndexed() : it.geo.clone(); g.applyMatrix4(it.m); gs.push([g, new THREE.Color(it.col)]); n += g.attributes.position.count; }
+  const pos = new Float32Array(n * 3), nor = new Float32Array(n * 3), col = new Float32Array(n * 3);
+  let o = 0;
+  for (const [g, c] of gs) {
+    const p = g.attributes.position, q = g.attributes.normal;
+    for (let i = 0; i < p.count; i++, o++) {
+      pos[o * 3] = p.getX(i); pos[o * 3 + 1] = p.getY(i); pos[o * 3 + 2] = p.getZ(i);
+      nor[o * 3] = q.getX(i); nor[o * 3 + 1] = q.getY(i); nor[o * 3 + 2] = q.getZ(i);
+      col[o * 3] = c.r; col[o * 3 + 1] = c.g; col[o * 3 + 2] = c.b;
+    }
+    g.dispose();
   }
-  part(robotGeo.arm, mb, -.5, 1.2, .1, 'body');
-  part(robotGeo.arm, mb, .5, 1.2, .1, 'body').rotation.x = -1.1;
-  part(robotGeo.gun, md, .42, 1.25, .45, 'body');
+  const out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  out.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+  out.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  out.computeBoundingSphere(); out.computeBoundingBox();
+  return out;
+}
+// a small kit for describing a body part: boxes, spheres, and limbs strung between two points
+function kit() {
+  const L = [];
+  const at = (x, y, z, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1) => new THREE.Matrix4().compose(_bp.set(x, y, z), _bq.setFromEuler(new THREE.Euler(rx, ry, rz)), _bs.set(sx, sy, sz));
+  return {
+    L,
+    box(w, h, d, col, x, y, z, rx = 0, ry = 0, rz = 0) { L.push({ geo: new THREE.BoxGeometry(w, h, d), col, m: at(x, y, z, rx, ry, rz) }); },
+    ball(r, col, x, y, z, sx = 1, sy = 1, sz = 1, seg = 10) { L.push({ geo: new THREE.SphereGeometry(r, seg, Math.max(6, seg - 3)), col, m: at(x, y, z, 0, 0, 0, sx, sy, sz) }); },
+    cap(r, col, x, y, z, sx = 1, sy = 1, sz = 1) { L.push({ geo: new THREE.SphereGeometry(r, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), col, m: at(x, y, z, 0, 0, 0, sx, sy, sz) }); },
+    cyl(r1, r2, h, col, x, y, z, rx = 0, ry = 0, rz = 0, seg = 8) { L.push({ geo: new THREE.CylinderGeometry(r1, r2, h, seg), col, m: at(x, y, z, rx, ry, rz) }); },
+    limb(a, b, r1, r2, col, seg = 8) {
+      const d = new THREE.Vector3().subVectors(b, a), len = d.length();
+      const q = new THREE.Quaternion().setFromUnitVectors(_by, d.clone().normalize());
+      L.push({ geo: new THREE.CylinderGeometry(r2, r1, len, seg), col, m: new THREE.Matrix4().compose(a.clone().add(b).multiplyScalar(.5), q, _bs.set(1, 1, 1)) });
+    },
+    done() { return mergeColored(L); },
+  };
+}
+const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
+const mixHex = (a, b, k) => new THREE.Color(a).lerp(new THREE.Color(b), k).getHex();
+// What the soldier is carrying, in their hands. len/bar: body and barrel length; mag: style; optic: top
+const BODY_GUN = {
+  rifle: { len: .42, bar: .22, h: .07, mag: 'curved', optic: 'dot' },
+  smg: { len: .3, bar: .1, h: .075, mag: 'straight', optic: 'dot' },
+  dmr: { len: .48, bar: .34, h: .07, mag: 'box', optic: 'scope' },
+  shotgun: { len: .4, bar: .3, h: .07, mag: 'tube', optic: 'none' },
+  lmg: { len: .5, bar: .28, h: .09, mag: 'drum', optic: 'dot' },
+};
+const bodyCache = {};
+function soldierGeo(uni, skin, team, lens, gunKind) {
+  const key = [uni, skin, team, lens, gunKind].join('|');
+  if (bodyCache[key]) return bodyCache[key];
+  const vest = mixHex(uni, 0x2f3128, .45), gear = mixHex(uni, 0x1e201c, .62), dark = 0x22241f, metal = 0x2a2c2e, boot = 0x2b2620;
+  const helmet = mixHex(uni, 0x4a4a3c, .3), glove = 0x2d2b27, skinD = mixHex(skin, 0x3a2418, .25);
+  // torso: hips, shirt, plate carrier with pouches, pack, belt, neck
+  const t = kit();
+  t.box(.36, .2, .23, uni, 0, .99, 0);
+  t.box(.4, .055, .26, dark, 0, 1.085, 0);
+  t.box(.06, .06, .05, gear, .14, 1.085, .13);
+  t.cyl(.2, .18, .5, uni, 0, 1.34, 0, 0, 0, 0, 10);
+  t.box(.44, .38, .3, vest, 0, 1.37, .005);
+  for (const x of [-.12, 0, .12]) { t.box(.1, .13, .06, gear, x, 1.26, .175); t.box(.1, .02, .065, dark, x, 1.33, .176); }
+  t.box(.12, .08, .04, gear, -.13, 1.45, .17);
+  t.box(.07, .04, .045, team, .13, 1.47, .168); // team patch
+  t.box(.36, .42, .17, gear, 0, 1.37, -.23);
+  t.box(.3, .1, .14, mixHex(gear, 0, .2), 0, 1.22, -.25);
+  for (const x of [-.13, .13]) t.box(.05, .4, .03, dark, x, 1.38, -.16);
+  t.box(.34, .06, .04, vest, 0, 1.56, .14);
+  t.ball(.1, uni, .24, 1.53, 0, 1, .9, 1);
+  t.ball(.1, uni, -.24, 1.53, 0, 1, .9, 1);
+  t.cyl(.055, .06, .11, skin, 0, 1.62, .01);
+  t.cyl(.07, .075, .06, uni, 0, 1.585, 0, 0, 0, 0, 10); // collar
+  // head: face, nose, ears, eyes, helmet with a band in the team colour and goggles
+  const h = kit();
+  h.ball(.11, skin, 0, 0, 0, .88, 1.08, .98, 14);
+  h.box(.035, .05, .04, skinD, 0, -.015, .1);
+  h.box(.07, .02, .02, skinD, 0, -.06, .095); // mouth line
+  for (const s of [-1, 1]) { h.box(.025, .045, .03, skinD, s * .098, -.005, 0); h.box(.026, .014, .01, 0x1a1a1a, s * .04, .022, .1); h.box(.035, .008, .01, mixHex(skin, 0x201510, .6), s * .04, .042, .1); }
+  h.cap(.138, helmet, 0, .035, -.005, 1, .95, 1.05);
+  h.cyl(.142, .145, .022, helmet, 0, .035, -.005, 0, 0, 0, 14);
+  h.cyl(.14, .14, .03, team, 0, .06, -.005, 0, 0, 0, 14);
+  h.box(.17, .05, .04, dark, 0, .1, .11, -.35);
+  h.box(.065, .03, .012, lens, -.04, .1, .132, -.35); h.box(.065, .03, .012, lens, .04, .1, .132, -.35);
+  h.box(.06, .05, .04, gear, 0, .12, -.13);
+  for (const s of [-1, 1]) h.box(.02, .07, .07, dark, s * .135, -.03, 0); // ear protection
+  // arms and the gun, posed holding it at the shoulder
+  const a = kit(), G_ = BODY_GUN[gunKind] || BODY_GUN.rifle;
+  const gx = .1, gy = 1.42, gz0 = .02, gz1 = gz0 + G_.len, H = G_.h;
+  a.box(.05, .1, .2, gear, gx, gy - .02, gz0 - .05);                 // stock
+  a.box(.04, .03, .06, dark, gx, gy - .04, gz0 - .16);               // butt pad
+  a.box(.055, H, G_.len * .55, metal, gx, gy, gz0 + G_.len * .3);    // receiver
+  a.box(.06, H * .9, G_.len * .42, gear, gx, gy - .004, gz0 + G_.len * .78); // handguard
+  a.cyl(.012, .012, G_.bar, 0x1d1e1f, gx, gy + .005, gz1 + G_.bar / 2, Math.PI / 2);
+  a.box(.03, .075, .04, dark, gx, gy - .07, gz0 + .1, -.3);          // grip
+  if (G_.mag === 'curved') a.box(.04, .15, .065, dark, gx, gy - .1, gz0 + G_.len * .46, .25);
+  else if (G_.mag === 'straight') a.box(.035, .17, .045, dark, gx, gy - .11, gz0 + G_.len * .42);
+  else if (G_.mag === 'box') a.box(.04, .1, .07, dark, gx, gy - .075, gz0 + G_.len * .45);
+  else if (G_.mag === 'drum') { a.cyl(.07, .07, .06, dark, gx, gy - .09, gz0 + G_.len * .42, 0, 0, Math.PI / 2, 12); }
+  else if (G_.mag === 'tube') a.cyl(.016, .016, G_.bar + .1, dark, gx, gy - .035, gz1 + G_.bar / 2 - .08, Math.PI / 2);
+  if (G_.optic === 'dot') a.box(.035, .045, .07, dark, gx, gy + H / 2 + .022, gz0 + G_.len * .35);
+  else if (G_.optic === 'scope') { a.cyl(.022, .022, .22, dark, gx, gy + H / 2 + .035, gz0 + G_.len * .35, Math.PI / 2, 0, 0, 10); a.cyl(.03, .024, .05, dark, gx, gy + H / 2 + .035, gz0 + G_.len * .35 + .12, Math.PI / 2, 0, 0, 10); }
+  // the right hand on the grip, the left on the handguard
+  const rS = V3(.24, 1.5, -.01), rE = V3(.27, 1.27, .03), rH = V3(gx + .015, gy - .06, gz0 + .1);
+  const lS = V3(-.24, 1.5, -.01), lE = V3(-.2, 1.3, .25), lH = V3(gx - .03, gy - .045, gz0 + G_.len * .78);
+  for (const [S, E, Hd] of [[rS, rE, rH], [lS, lE, lH]]) {
+    a.limb(S, E, .068, .058, uni);
+    a.limb(S.clone().lerp(E, .3), S.clone().lerp(E, .5), .072, .07, team); // armband
+    a.ball(.058, uni, E.x, E.y, E.z);
+    a.limb(E, Hd.clone().lerp(E, .15), .056, .045, uni);
+    a.ball(.046, glove, Hd.x, Hd.y, Hd.z, 1, .9, 1.25);
+  }
+  // legs, hinged at the hip and the knee
+  const th = kit();
+  th.limb(V3(0, 0, 0), V3(0, -.45, .01), .085, .068, uni);
+  th.box(.05, .1, .1, gear, .085, -.24, 0); // thigh pocket
+  const sh = kit();
+  sh.limb(V3(0, 0, 0), V3(0, -.36, -.01), .066, .055, uni);
+  sh.box(.11, .1, .05, dark, 0, -.05, .06); // knee pad
+  sh.box(.12, .13, .14, boot, 0, -.4, .005);
+  sh.box(.12, .07, .26, boot, 0, -.445, .05);
+  sh.box(.125, .025, .27, 0x161412, 0, -.475, .05);
+  return (bodyCache[key] = { torso: t.done(), head: h.done(), arms: a.done(), thigh: th.done(), shin: sh.done(), mz: gz1 + G_.bar + .01, my: gy + .005, mx: gx });
+}
+// tag: what a bullet hitting this part reports. Parts go into world.shootables.
+// bodyCol: the uniform. visorCol: the goggle lenses (red-orange for enemies). bandCol: helmet band, armbands, patch.
+function buildRobot(bodyCol, visorCol, tag, bandCol, opt = {}) {
+  const uni = UNIFORMS.includes(bodyCol) ? bodyCol : UNIFORMS[(opt.look || 0) % UNIFORMS.length];
+  const skin = SKINS_TONE[(opt.skin != null ? opt.skin : (Math.random() * SKINS_TONE.length) | 0) % SKINS_TONE.length];
+  const geo = soldierGeo(uni, skin, bandCol != null ? bandCol : 0x888888, visorCol, opt.gun || 'rifle');
+  const g = new THREE.Group();
+  const mb = new THREE.MeshLambertMaterial({ vertexColors: true });
+  const parts = [];
+  const part = (geometry, p, parent, x = 0, y = 0, z = 0) => {
+    const me = new THREE.Mesh(geometry, mb); me.position.set(x, y, z); me.castShadow = true;
+    me.userData = Object.assign({ part: p }, tag); parts.push(me); parent.add(me); return me;
+  };
+  const upper = new THREE.Group(); g.add(upper);
+  part(geo.torso, 'body', upper);
+  part(geo.arms, 'body', upper);
+  const head = part(geo.head, 'head', upper, 0, 1.72, 0);
+  const legs = [], knees = [];
+  for (const s of [-1, 1]) {
+    const hip = new THREE.Group(); hip.position.set(s * .1, .95, 0); g.add(hip);
+    part(geo.thigh, 'body', hip);
+    const knee = new THREE.Group(); knee.position.set(0, -.45, .01); hip.add(knee);
+    part(geo.shin, 'body', knee);
+    legs.push(hip); knees.push(knee);
+  }
   scene.add(g);
-  return { group: g, parts, legs, head, mb, md, mv, walk: 0 };
+  return { group: g, upper, parts, legs, knees, head, mb, md: mb, mv: mb, walk: 0, muzzle: new THREE.Vector3(geo.mx, geo.my, geo.mz) };
 }
 function disposeRobot(rb) {
   scene.remove(rb.group);
   const set = new Set(rb.parts);
   world.shootables = world.shootables.filter(o => !set.has(o));
-  rb.mb.dispose(); rb.md.dispose(); rb.mv.dispose();
+  rb.mb.dispose();
 }
 function animateRobot(rb, moved, dt) {
-  rb.walk += moved * 3.2;
-  const sw = Math.sin(rb.walk) * Math.min(1, moved / Math.max(dt * 2, 1e-4) * 0.6 + 0.1);
-  rb.legs[0].rotation.x = sw * .7; rb.legs[1].rotation.x = -sw * .7;
-  return Math.abs(Math.sin(rb.walk)) * .05;
+  rb.walk += moved * 2.6;
+  const a = Math.min(1, moved / Math.max(dt * 2, 1e-4) * 0.6 + 0.05), sw = Math.sin(rb.walk) * a;
+  rb.legs[0].rotation.x = sw * .55; rb.legs[1].rotation.x = -sw * .55;
+  rb.knees[0].rotation.x = (Math.max(0, Math.sin(rb.walk + 1.4)) * 1.0 + .05) * a;
+  rb.knees[1].rotation.x = (Math.max(0, Math.sin(rb.walk + 1.4 + Math.PI)) * 1.0 + .05) * a;
+  rb.upper.rotation.y = sw * .06; rb.upper.rotation.x = .05 * a;
+  return Math.abs(Math.sin(rb.walk)) * .04 * a - .02 * a;
 }
+// Knocked out: tip over, lie there a moment, then sink away. Nothing gory.
+const fallen = [];
+function fallDown(rb) {
+  const set = new Set(rb.parts);
+  world.shootables = world.shootables.filter(o => !set.has(o));
+  rb.group.rotation.order = 'YXZ';
+  fallen.push({ rb, t: 0, dir: Math.random() < .5 ? 1 : -1, side: R(-.4, .4), y0: rb.group.position.y, dust: false });
+  while (fallen.length > 30) { const f = fallen.shift(); disposeRobot(f.rb); }
+}
+function updateFallen(dt) {
+  for (let i = fallen.length - 1; i >= 0; i--) {
+    const f = fallen[i], g = f.rb.group; f.t += dt;
+    const k = Math.min(1, f.t / .55), e = k * k;
+    g.rotation.x = f.dir * e * 1.5; g.rotation.z = f.side * e;
+    f.rb.knees[0].rotation.x = f.rb.knees[1].rotation.x = (f.dir < 0 ? .9 : .3) * Math.min(1, f.t / .3);
+    g.position.y = f.y0 + (f.t > 3.5 ? -(f.t - 3.5) * .5 : 0) + e * .12;
+    if (!f.dust && k >= 1) { f.dust = true; if (g.visible) puff(new THREE.Vector3(g.position.x + Math.sin(g.rotation.y) * f.dir * 1.2, g.position.y + .2, g.position.z + Math.cos(g.rotation.y) * f.dir * 1.2), 0x9a9080, 1.2, 1.2, .3); }
+    if (f.t > 5) { disposeRobot(f.rb); fallen.splice(i, 1); }
+  }
+}
+function clearFallen() { fallen.forEach(f => disposeRobot(f.rb)); fallen.length = 0; }
 function makeNameTag(text, color) {
   const c = document.createElement('canvas'); c.width = 256; c.height = 64;
   const x = c.getContext('2d');
@@ -237,8 +392,9 @@ class Bot {
     this.cool = R(.5, 1.5); this.burst = 0; this.strafe = Math.random() < .5 ? 1 : -1; this.strafeT = R(.6, 1.6); this.reaction = R(.4, .85);
     this.push = 0; this.retreat = 0; this.jumpT = R(2, 5);
     this.lastFired = -99; this.flash = 0; this.stuck = 0; this.crateT = R(0, 2);
-    const visor = this.ally ? teamHex(this.team) : 0xff5a3c;
-    this.rb = buildRobot([0x6b7680, 0x7a7466, 0x667a70, 0x6e6a78][botSerial % 4], visor, { bot: this }, teamHex(this.team));
+    const visor = this.ally ? 0x8fd0ff : 0xff6a3c;
+    this.look = this.look != null ? this.look : (Math.random() * 1e6) | 0;
+    this.rb = buildRobot(-1, visor, { bot: this }, teamHex(this.team), { look: this.look, skin: (this.look >> 3) % 5, gun: this.gun });
     world.shootables.push(...this.rb.parts);
     if (this.ally) { this.tag = makeNameTag(this.name, teamCss(this.team)); this.rb.group.add(this.tag); }
     this.rb.group.position.set(this.pos.x, this.feet, this.pos.z);
@@ -258,7 +414,7 @@ class Bot {
     this.goal.set(R(-H, H), 0, R(-H, H));
   }
   hear(from) { if (this.dead) return; this.alert = Math.max(this.alert, 4); this.lastKnown.copy(from); }
-  muzzle() { return _v.set(.42, 1.25, .78).applyMatrix4(this.rb.group.matrixWorld).clone(); }
+  muzzle() { return _v.copy(this.rb.muzzle).applyMatrix4(this.rb.group.matrixWorld).clone(); }
   scan() {
     const range = BOT_GUNS[this.gun].range * 1.15 + 20;
     let best = [];
@@ -401,9 +557,10 @@ class Bot {
   }
   die(head, src) {
     this.dead = true; this.d++;
-    scrapBurst(this.pos.clone().setY(this.feet), teamHex(this.team));
+    knockout(this.pos.clone().setY(this.feet));
+    if (this.tag) this.rb.group.remove(this.tag);
     disposeTag(this.tag); this.tag = null;
-    disposeRobot(this.rb);
+    fallDown(this.rb);
     onBotKilled(this, src, head);
   }
   remove() { if (!this.dead) { disposeTag(this.tag); disposeRobot(this.rb); } this.dead = true; }

@@ -256,7 +256,7 @@ function clientHandle(m) {
         if (MP.rules.kind === 'br') { MP.out = true; G.spec = [...MP.avatars.values()].find(a => a.alive && a.team === MP.team) || null; }
       } else {
         const av = MP.avatars.get(m.v);
-        if (av) { av.alive = false; av.rb.group.visible = false; scrapBurst(av.pos.clone().setY(av.feet), teamHex(av.team)); }
+        if (av) { av.alive = false; av.rb.group.visible = false; knockout(av.pos.clone().setY(av.feet)); }
         if (G.spec && G.spec.id === m.v) G.spec = [...MP.avatars.values()].find(a => a.alive && a.team === MP.team) || null;
       }
       if (m.k === MP.me) {
@@ -287,7 +287,8 @@ function syncAvatars() {
   for (const p of MP.players.values()) {
     if (p.id === MP.me || MP.avatars.has(p.id)) continue;
     const mate = p.team === MP.team;
-    const rb = buildRobot(0x6d757c, mate ? teamHex(p.team) : 0xff5a3c, { remote: p.id }, teamHex(p.team));
+    const look = hashStr(String(p.id));
+    const rb = buildRobot(-1, mate ? 0x8fd0ff : 0xff6a3c, { remote: p.id }, teamHex(p.team), { look, skin: (look >> 3) % 5, gun: GUN_TO_BOT[p.gun] || 'rifle' });
     world.shootables.push(...rb.parts);
     const av = { id: p.id, kind: 'avatar', team: p.team, myTeam: MP.team, rb, pos: new THREE.Vector3(), target: new THREE.Vector3(), feet: 0, yaw: 0, tyaw: 0,
       alive: false, lastShot: -99, quiet: false, tag: null, hp: 100, veh: -1 };
@@ -327,7 +328,8 @@ function updateAvatars(dt) {
       placeVehicle(veh);
     }
     const bobY = animateRobot(av.rb, Math.hypot(av.pos.x - ox, av.pos.z - oz), dt);
-    av.rb.group.position.set(av.pos.x, av.feet + bobY - (av.crouch ? .35 : 0), av.pos.z);
+    if (av.crouch) { av.rb.legs[0].rotation.x = av.rb.legs[1].rotation.x = -1.1; av.rb.knees[0].rotation.x = av.rb.knees[1].rotation.x = 1.9; }
+    av.rb.group.position.set(av.pos.x, av.feet + (av.crouch ? -.4 : bobY), av.pos.z);
     av.rb.group.rotation.y = av.yaw;
   }
 }
