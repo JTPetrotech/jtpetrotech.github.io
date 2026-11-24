@@ -133,8 +133,9 @@ function leaveVehicle(quiet) {
 // while driving: steer the vehicle and put the camera behind it
 function updateDriving(dt, input) {
   const v = P.veh;
-  const thr = input && P.alive ? (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0) : 0;
-  const steer = input && P.alive ? (keys.KeyA ? 1 : 0) - (keys.KeyD ? 1 : 0) : 0;
+  let thr = input && P.alive ? (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0) : 0;
+  let steer = input && P.alive ? (keys.KeyA ? 1 : 0) - (keys.KeyD ? 1 : 0) : 0;
+  if (input && P.alive && padDrive.on) { thr = clamp(thr + padDrive.thr, -1, 1); steer = clamp(steer + padDrive.steer, -1, 1); }
   driveVehicle(v, dt, thr, steer);
   P.pos.x = v.pos.x; P.pos.z = v.pos.z; P.feet = v.feet + v.T.seat; P.vy = 0; P.onGround = true; P.sprint = false;
   P.vel.set(Math.sin(v.yaw) * v.speed, 0, Math.cos(v.yaw) * v.speed);

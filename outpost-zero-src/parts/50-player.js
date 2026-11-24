@@ -56,7 +56,7 @@ function hurt(n, from, src) {
   if (!P.alive || G.mode !== 'bots') return;
   P.lastHurt = G.time;
   if (P.armor > 0 && src !== 'zone') { const ab = Math.min(P.armor, n * 0.7); P.armor -= ab; n -= ab; }
-  P.hp -= n;
+  P.hp -= n; padRumble(.6, .3, 120);
   if (from) { vignT = .35; dmgArc(from); }
   if (P.hp <= 0) { P.hp = 0; P.alive = false; onPlayerKilled(src); }
 }
@@ -137,6 +137,7 @@ function fire() {
   }
   if (!scoped) tracer(muzzleW, end0, false);
   sndShot(s.snd);
+  padRumble(s.recoilV > .03 ? .55 : .25, .35, s.pellets > 1 || s.recoilV > .03 ? 90 : 45);
   if (!GUNS[g.id].revolver && !(s.pellets > 1 && GUNS[g.id].tube)) { const e = g.m.eject.clone(); g.m.group.localToWorld(e); shell(e); }
   if (Math.random() < .3) puff(muzzleW.clone(), 0xbfbab0, .12, .7, .5);
   if (G.mode === 'bots' && !s.quiet) for (const b of bots) if (!b.dead && b.team !== PL.team && b.pos.distanceTo(P.pos) < 75) b.hear(P.pos);
@@ -202,8 +203,9 @@ function updatePlayer(dt, input) {
   wish.set(0, 0, 0);
   if (P.alive && input) {
     if (keys.KeyW) wish.add(fwd); if (keys.KeyS) wish.sub(fwd); if (keys.KeyD) wish.add(right); if (keys.KeyA) wish.sub(right);
+    if (padMove.x || padMove.y) { wish.addScaledVector(fwd, padMove.y); wish.addScaledVector(right, padMove.x); } // a stick walks as slow as it is pushed
   }
-  if (wish.lengthSq() > 0) wish.normalize();
+  if (wish.lengthSq() > 1) wish.normalize();
   const wantShoot = input && P.alive && (mouse.l || G.time - triggerT < 0.25);
   const aiming = input && mouse.r && !reloading && P.alive && swapT >= 1;
   // sprint ends the moment you shoot or aim, so the trigger always works
