@@ -154,7 +154,82 @@ footer .sep{margin:16px auto 0;height:1px;max-width:220px;background:var(--line)
 }
 .acct-link:hover,.acct-link:focus-visible{color:var(--amber);outline:none}
 
-@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+/* ------------------------------------------------------------ the look --
+   A night sky, a neon sign and a grid floor running off to the horizon.
+   All of it is CSS on two empty divs, so it costs nothing to load. */
+body{position:relative;overflow-x:hidden;padding-bottom:96px}
+.sky,.floor{position:fixed;left:0;right:0;pointer-events:none;z-index:-1}
+.sky{top:0;bottom:0;
+  background-image:
+    radial-gradient(1px 1px at 12% 18%,rgba(255,255,255,.55),transparent 60%),
+    radial-gradient(1px 1px at 72% 9%,rgba(255,255,255,.45),transparent 60%),
+    radial-gradient(1.5px 1.5px at 38% 32%,rgba(255,255,255,.35),transparent 60%),
+    radial-gradient(1px 1px at 88% 41%,rgba(255,255,255,.4),transparent 60%),
+    radial-gradient(1px 1px at 22% 58%,rgba(255,255,255,.3),transparent 60%),
+    radial-gradient(1.5px 1.5px at 57% 66%,rgba(255,255,255,.25),transparent 60%),
+    radial-gradient(1px 1px at 5% 80%,rgba(255,255,255,.3),transparent 60%),
+    radial-gradient(1px 1px at 94% 74%,rgba(255,255,255,.3),transparent 60%);
+}
+.floor{bottom:0;height:46vh;perspective:340px;overflow:hidden;
+  -webkit-mask-image:linear-gradient(to top,#000 10%,transparent 92%);mask-image:linear-gradient(to top,#000 10%,transparent 92%)}
+.floor::before{content:"";position:absolute;left:-60%;right:-60%;top:-70%;bottom:0;
+  transform:rotateX(66deg);transform-origin:50% 100%;
+  background-image:
+    linear-gradient(rgba(255,196,61,.4) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(47,127,224,.45) 1px,transparent 1px);
+  background-size:56px 56px;animation:floor 3.2s linear infinite}
+.floor::after{content:"";position:absolute;left:0;right:0;top:0;height:2px;
+  background:linear-gradient(90deg,transparent,rgba(255,196,61,.55),transparent);
+  box-shadow:0 0 22px 4px rgba(255,196,61,.25)}
+@keyframes floor{to{background-position:0 56px}}
+
+.eyebrow{display:inline-flex;align-items:center;gap:9px;margin-bottom:18px;
+  font-size:11px;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);
+  padding:7px 14px;border-radius:999px;border:1px solid var(--line);background:rgba(14,22,33,.6)}
+.eyebrow i{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 10px var(--green);animation:blink 2.4s ease-in-out infinite}
+@keyframes blink{50%{opacity:.35}}
+
+h1{text-shadow:0 4px 0 rgba(0,0,0,.35)}
+h1 em{text-shadow:0 0 6px rgba(255,196,61,.75),0 0 24px rgba(255,196,61,.5),0 0 60px rgba(255,150,40,.35);
+  animation:sign 4.5s 1s both}
+/* a neon tube catching as it warms up, once */
+@keyframes sign{0%{opacity:.25}4%{opacity:1}7%{opacity:.4}10%,100%{opacity:1}}
+
+.padstrip{display:inline-flex;align-items:center;gap:11px;margin-top:20px;text-align:left;
+  font-size:13px;line-height:1.4;color:var(--muted);padding:9px 16px 9px 12px;border-radius:14px;
+  border:1px solid var(--line);background:rgba(14,22,33,.55);transition:border-color .3s,box-shadow .3s,color .3s}
+.pad-ico{flex:0 0 auto;color:#5c6f86;display:grid;transition:color .3s}
+.pad-ico svg{width:34px;height:23px}
+.padstrip.live{color:var(--text);border-color:rgba(62,201,138,.6);box-shadow:0 0 24px -6px rgba(62,201,138,.6)}
+.padstrip.live .pad-ico{color:var(--green)}
+
+/* cards */
+main{max-width:900px;gap:18px}
+a.game{position:relative;animation:rise .6s cubic-bezier(.2,.8,.2,1) both}
+a.game:nth-child(2){animation-delay:.08s}a.game:nth-child(3){animation-delay:.16s}
+a.game:nth-child(4){animation-delay:.24s}a.game:nth-child(n+5){animation-delay:.32s}
+@keyframes rise{from{opacity:0;transform:translateY(18px)}}
+a.game:hover,a.game:focus-visible,a.game.pn-focus{
+  transform:translateY(-4px);border-color:var(--accent,#2f7fe0);
+  box-shadow:0 22px 50px -18px var(--accent,#2f7fe0),0 14px 36px rgba(0,0,0,.5)}
+.art{height:170px;isolation:isolate}
+.art::before{content:"";position:absolute;inset:0;z-index:-1;
+  background:radial-gradient(circle at 50% 62%,color-mix(in srgb,var(--accent,#2f7fe0) 38%,transparent),transparent 62%)}
+.art::after{content:"";position:absolute;inset:0;z-index:-1;opacity:.5;
+  background-image:linear-gradient(rgba(255,255,255,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.05) 1px,transparent 1px);
+  background-size:22px 22px;
+  -webkit-mask-image:radial-gradient(circle at 50% 60%,#000,transparent 75%);mask-image:radial-gradient(circle at 50% 60%,#000,transparent 75%)}
+.art svg{width:128px;height:128px;transition:transform .35s cubic-bezier(.2,.8,.2,1);filter:drop-shadow(0 10px 18px rgba(0,0,0,.45))}
+a.game:hover .art svg,a.game:focus-visible .art svg,a.game.pn-focus .art svg{transform:scale(1.1) rotate(-3deg)}
+.play{padding:9px 18px 8px 20px;border-radius:999px;font-size:20px;color:var(--accent,#ffc43d);
+  border:1px solid color-mix(in srgb,var(--accent,#ffc43d) 55%,transparent);
+  background:color-mix(in srgb,var(--accent,#ffc43d) 12%,transparent);transition:background .18s,color .18s}
+a.game:hover .play,a.game:focus-visible .play,a.game.pn-focus .play{background:var(--accent,#ffc43d);color:#05080d}
+
+@media (prefers-reduced-motion:reduce){
+  *{transition:none!important}
+  .floor::before,.eyebrow i,h1 em,a.game{animation:none!important}
+}
 </style>
 </head>
 <body>
@@ -200,9 +275,17 @@ footer .sep{margin:16px auto 0;height:1px;max-width:220px;background:var(--line)
   </div>
 </div>
 
+<div class="sky" aria-hidden="true"></div>
+<div class="floor" aria-hidden="true"></div>
+
 <header>
+  <div class="eyebrow"><i></i>Free to play &middot; No ads &middot; Nothing to install</div>
   <h1>The <em>Arcade</em></h1>
   <p class="tag"><!--N--> games that run in a browser. Nothing to install, and once a page has loaded it keeps working with no signal. An account is optional &mdash; it is what carries your progress to another device.</p>
+  <div class="padstrip" id="padstrip">
+    <span class="pad-ico" aria-hidden="true"><svg viewBox="0 0 48 32"><path d="M14 4h20c6 0 10 4 11.5 11l1.8 8.5c.8 4-2 6.5-5 6.5-2.3 0-3.7-1.4-5.2-3.4L34.5 23h-21l-2.6 3.6C9.4 28.6 8 30 5.7 30c-3 0-5.8-2.5-5-6.5L2.5 15C4 8 8 4 14 4z" fill="currentColor" opacity=".9"/><path d="M11 12v7M7.5 15.5h7" stroke="#05080d" stroke-width="2.4" stroke-linecap="round"/><circle cx="35" cy="12.5" r="2.1" fill="#05080d"/><circle cx="39.5" cy="17" r="2.1" fill="#05080d"/></svg></span>
+    <span id="padsay">Got a controller? Plug it in and press any button &mdash; every game here works with one.</span>
+  </div>
 </header>
 
 <main>
@@ -239,6 +322,20 @@ footer .sep{margin:16px auto 0;height:1px;max-width:220px;background:var(--line)
 </footer>
 
 <script type="module" src="account/ui.js"></script>
+<script>
+/* The controller strip under the title: lights up once a pad is seen. */
+(function(){
+  var strip = document.getElementById('padstrip'), say = document.getElementById('padsay');
+  function live(){
+    if (strip.classList.contains('live')) return;
+    strip.classList.add('live');
+    say.textContent = 'Controller connected \u2014 D-pad to pick a game, A to play.';
+  }
+  addEventListener('gamepadconnected', live);
+  addEventListener('padnav', function(e){ if (e.detail && e.detail.using) live(); });
+  try { var g = navigator.getGamepads && navigator.getGamepads(); if (g) for (var i = 0; i < g.length; i++) if (g[i]) live(); } catch (e) {}
+})();
+</script>
 
 <!--PADNAV-->
 </body>
