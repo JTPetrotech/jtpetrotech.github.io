@@ -9,8 +9,10 @@ Live: **https://jtpetrotech.github.io/**
 - **[Side Pot](https://jtpetrotech.github.io/poker-pages/)** — play-money
   No-Limit Hold'em, peer to peer, no server in the middle.
 - **[Outpost Zero](https://jtpetrotech.github.io/outpost-zero/)** — low-poly
-  first-person shooter against patrol bots, with a red-dot rifle, a scoped
-  sniper and an SMG. The game itself lives in this repo at `outpost-zero/`.
+  first-person shooter. Solo against bots, or online team deathmatch with a
+  four-letter match code (peer to peer, like Side Pot). Eight guns with mods,
+  five maps. Source is `outpost-zero-src/`; run `node build.js` there to
+  rebuild `outpost-zero/index.html`.
 
 ## Why this repo is named the way it is
 
