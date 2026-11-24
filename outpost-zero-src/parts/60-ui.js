@@ -170,7 +170,7 @@ function renderLoadout() {
       ch.map(v => `<button data-cat="${cat}" data-v="${v}" class="${v === sel ? 'on' : ''}">${table[v].name}</button>`).join('')
     }</div><div class="attdesc">${table[sel].desc || ''}</div></div></div>`;
   }).join('');
-  $('loSkins').innerHTML = SKIN_IDS.map(k => `<button data-skin="${k}" class="sw${k === sl.skin ? ' on' : ''}" aria-label="${SKINS[k].name} skin"><i style="background:linear-gradient(135deg,${SKINS[k].sw[0]} 50%,${SKINS[k].sw[1]} 50%)"></i>${SKINS[k].name}</button>`).join('');
+  $('loSkins').innerHTML = SKIN_IDS.map(k => `<button data-skin="${k}" class="sw${k === sl.skin ? ' on' : ''}" aria-label="${SKINS[k].name} skin"><i style="background:${skinSwatch(k)}"></i>${SKINS[k].name}</button>`).join('');
   const s = gunStats(id, sl.att), base = gunStats(id, defaultAtt(id));
   $('loName').textContent = GUNS[id].name;
   $('loSub').textContent = `${GUNS[id].cls} · ${SKINS[sl.skin || 'factory'].name} · ${modSummary(sl)}`;

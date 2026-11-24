@@ -135,56 +135,211 @@ const MOD_CATS = [['optic', 'Optic'], ['muzzle', 'Muzzle'], ['barrel', 'Barrel']
 // kind: plain colour, camo (blobs), digital (pixels), stripes, carbon weave, or neon lines
 const SKINS = {
   factory: { name: 'Factory', kind: 'factory', sw: ['#2a2e33', '#9b8360'] },
+  fde: { name: 'Flat Dark Earth', kind: 'cerakote', base: '#8a7656', sw: ['#8a7656', '#6f5e44'] },
+  odgreen: { name: 'OD Green', kind: 'cerakote', base: '#4c5236', sw: ['#4c5236', '#3a3f2a'] },
   woodland: { name: 'Woodland', kind: 'camo', base: '#4a5a38', spots: ['#2f3a24', '#6b5a3a', '#1f241a'], sw: ['#4a5a38', '#2f3a24'] },
   desert: { name: 'Desert', kind: 'camo', base: '#c2a77a', spots: ['#9c7f55', '#dccaa3', '#7a6244'], sw: ['#c2a77a', '#9c7f55'] },
+  multi: { name: 'Multi-terrain', kind: 'multi', base: '#a69a74', spots: ['#6f7a4c', '#86754f', '#4d5a36', '#b9ab84'], specks: ['#3b3226', '#cbbf98'], sw: ['#a69a74', '#6f7a4c'] },
+  fleck: { name: 'Fleck', kind: 'fleck', base: '#7d7a58', spots: ['#3d4a2a', '#5a5a3a', '#2a2a1e', '#7a4f32'], sw: ['#7d7a58', '#3d4a2a'] },
   arctic: { name: 'Arctic', kind: 'camo', base: '#dfe5e9', spots: ['#a9b3ba', '#6f7a82'], sw: ['#dfe5e9', '#6f7a82'] },
   ocean: { name: 'Deep sea', kind: 'camo', base: '#2b5f7e', spots: ['#1d3f57', '#4f8db0', '#163042'], sw: ['#2b5f7e', '#4f8db0'] },
   urban: { name: 'Urban digital', kind: 'digital', base: '#7d8388', spots: ['#4b5055', '#a6abaf', '#2d3135'], sw: ['#7d8388', '#2d3135'] },
+  walnut: { name: 'Walnut & blued', kind: 'wood', base: '#5a3a22', sw: ['#5a3a22', '#1d2430'] },
   tiger: { name: 'Tiger', kind: 'stripes', base: '#d98a2b', spots: ['#1d1a17'], sw: ['#d98a2b', '#1d1a17'] },
   crimson: { name: 'Crimson', kind: 'camo', base: '#8f1f24', spots: ['#6a161a', '#a52a2f'], sw: ['#8f1f24', '#6a161a'] },
-  carbon: { name: 'Carbon', kind: 'carbon', sw: ['#1a1c1f', '#2e3236'] },
+  python: { name: 'Python', kind: 'scales', base: '#8b7550', spots: ['#5a4630', '#c2a878', '#2a2018'], sw: ['#8b7550', '#2a2018'] },
+  worn: { name: 'Battle-worn', kind: 'worn', base: '#1e2022', sw: ['#1e2022', '#8d9196'] },
+  blued: { name: 'Blued steel', kind: 'blued', sw: ['#1d2430', '#4a5a78'] },
+  carbon: { name: 'Carbon fibre', kind: 'carbon', sw: ['#1a1c1f', '#3a3f45'] },
+  forged: { name: 'Forged carbon', kind: 'forged', sw: ['#141518', '#454a50'] },
+  damascus: { name: 'Damascus', kind: 'damascus', sw: ['#8a8d90', '#3e4246'] },
+  chrome: { name: 'Chrome', kind: 'chrome', sw: ['#e8edf2', '#6c7680'] },
   gold: { name: 'Gold', kind: 'gold', sw: ['#d4a53a', '#8a6420'] },
   neon: { name: 'Neon', kind: 'neon', sw: ['#15181c', '#3ff0ff'] },
 };
 const SKIN_IDS = Object.keys(SKINS);
-const skinCache = {};
-function skinTexture(id) {
-  const S = SKINS[id], c = document.createElement('canvas'); c.width = c.height = 128;
-  const x = c.getContext('2d'), r = mulberry(hashStr(id));
-  const wrap = (fn) => { for (const ox of [-128, 0, 128]) for (const oy of [-128, 0, 128]) fn(ox, oy); };
-  if (S.kind === 'carbon') {
-    for (let i = 0; i < 16; i++) for (let j = 0; j < 16; j++) { x.fillStyle = (i + j) % 2 ? '#1a1c1f' : '#2c3034'; x.fillRect(i * 8, j * 8, 8, 8); x.fillStyle = 'rgba(255,255,255,.05)'; x.fillRect(i * 8, j * 8, 8, 2); }
-  } else if (S.kind === 'neon') {
-    x.fillStyle = '#000'; x.fillRect(0, 0, 128, 128); x.strokeStyle = '#3ff0ff'; x.lineWidth = 2.2;
-    for (let i = 0; i < 9; i++) { const y = r() * 128, k = r() * 40; x.beginPath(); x.moveTo(0, y); x.lineTo(40 + k, y); x.lineTo(60 + k, y + 18); x.lineTo(128, y + 18); x.stroke(); }
-  } else {
-    x.fillStyle = S.base; x.fillRect(0, 0, 128, 128);
-    for (let i = 0; i < (S.kind === 'digital' ? 140 : S.kind === 'stripes' ? 16 : 26); i++) {
-      x.fillStyle = S.spots[(r() * S.spots.length) | 0];
-      const px = r() * 128, py = r() * 128;
-      if (S.kind === 'digital') { const s = 4 * (1 + ((r() * 3) | 0)); const qx = Math.floor(px / 4) * 4, qy = Math.floor(py / 4) * 4; x.fillRect(qx, qy, s, 4 * (1 + ((r() * 2) | 0))); }
-      else if (S.kind === 'stripes') { const w = 3 + r() * 6, t = r() * 0.6 - 0.3; wrap((ox, oy) => { x.save(); x.translate(px + ox, py + oy); x.rotate(t + 0.9); x.beginPath(); x.ellipse(0, 0, 34 + r() * 10, w, 0, 0, 6.29); x.fill(); x.restore(); }); }
-      else { const rx = 8 + r() * 16, ry = 5 + r() * 10, a = r() * 3; wrap((ox, oy) => { x.beginPath(); x.ellipse(px + ox, py + oy, rx, ry, a, 0, 6.29); x.fill(); }); }
+const skinCache = {}, skinCanvas = {};
+// A small sky for shiny finishes to reflect: bright above, the horizon, dark ground below
+let envCube = null;
+function skinEnv() {
+  if (envCube) return envCube;
+  const face = (top, mid, bot, sun) => {
+    const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d');
+    const g = x.createLinearGradient(0, 0, 0, 64); g.addColorStop(0, top); g.addColorStop(.5, mid); g.addColorStop(.56, '#5b5a4e'); g.addColorStop(1, bot);
+    x.fillStyle = g; x.fillRect(0, 0, 64, 64);
+    if (sun) { const r = x.createRadialGradient(40, 18, 0, 40, 18, 22); r.addColorStop(0, 'rgba(255,250,235,1)'); r.addColorStop(1, 'rgba(255,250,235,0)'); x.fillStyle = r; x.fillRect(0, 0, 64, 64); }
+    return c;
+  };
+  const side = () => face('#a9c6e2', '#dfe8ee', '#2e2c26');
+  const up = document.createElement('canvas'); up.width = up.height = 64; { const x = up.getContext('2d'); const r = x.createRadialGradient(32, 32, 0, 32, 32, 46); r.addColorStop(0, '#ffffff'); r.addColorStop(1, '#9fbfdf'); x.fillStyle = r; x.fillRect(0, 0, 64, 64); }
+  const dn = document.createElement('canvas'); dn.width = dn.height = 64; { const x = dn.getContext('2d'); x.fillStyle = '#26241f'; x.fillRect(0, 0, 64, 64); }
+  envCube = new THREE.CubeTexture([face('#a9c6e2', '#e6eef3', '#2e2c26', true), side(), up, dn, side(), side()]);
+  envCube.needsUpdate = true;
+  return envCube;
+}
+// fine grain and the odd scuff, so painted finishes look applied, not printed
+function grain(x, n, amt, r) {
+  const d = x.getImageData(0, 0, n, n), p = d.data;
+  for (let i = 0; i < p.length; i += 4) { const k = (r() - .5) * amt; p[i] += k; p[i + 1] += k; p[i + 2] += k; }
+  x.putImageData(d, 0, 0);
+}
+function scuffs(x, n, r, count, col = 'rgba(255,255,255,.07)') {
+  x.strokeStyle = col; x.lineWidth = 1;
+  for (let i = 0; i < count; i++) { const a = r() * 6.28, l = 4 + r() * 22, px = r() * n, py = r() * n; x.beginPath(); x.moveTo(px, py); x.lineTo(px + Math.cos(a) * l, py + Math.sin(a) * l); x.stroke(); }
+}
+// Carbon fibre: a 2x2 twill of tows, each one a bundle of fibres with a rounded sheen across it.
+// bump: the same weave as a height map, so light catches the crowns of the tows.
+function carbonCanvas(bump) {
+  const n = 512, T = 32, c = document.createElement('canvas'); c.width = c.height = n;
+  const x = c.getContext('2d'), r = mulberry(77);
+  for (let i = 0; i < n / T; i++) for (let j = 0; j < n / T; j++) {
+    const hor = ((i + j) & 3) < 2, px = i * T, py = j * T;
+    const g = hor ? x.createLinearGradient(0, py, 0, py + T) : x.createLinearGradient(px, 0, px + T, 0);
+    if (bump) { g.addColorStop(0, '#000'); g.addColorStop(.5, '#fff'); g.addColorStop(1, '#000'); }
+    else if (hor) { g.addColorStop(0, '#08090a'); g.addColorStop(.3, '#2a2e33'); g.addColorStop(.5, '#3d4248'); g.addColorStop(.7, '#2a2e33'); g.addColorStop(1, '#08090a'); }
+    else { g.addColorStop(0, '#060708'); g.addColorStop(.35, '#16181b'); g.addColorStop(.5, '#1f2226'); g.addColorStop(.65, '#16181b'); g.addColorStop(1, '#060708'); }
+    x.fillStyle = g; x.fillRect(px, py, T, T);
+    if (!bump) {
+      for (let f = 0; f < 10; f++) {
+        x.fillStyle = `rgba(${r() < .3 ? '150,160,170' : '0,0,0'},${.04 + r() * .07})`;
+        const o = 1 + r() * (T - 2);
+        if (hor) x.fillRect(px, py + o, T, .7); else x.fillRect(px + o, py, .7, T);
+      }
     }
+    x.fillStyle = bump ? '#000' : '#040405';
+    if (hor) x.fillRect(px + T - 1, py, 1, T); else x.fillRect(px, py + T - 1, T, 1);
   }
-  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  if (S.kind === 'digital' || S.kind === 'carbon') t.magFilter = THREE.NearestFilter;
+  return c;
+}
+function skinCanvasFor(id) {
+  if (skinCanvas[id]) return skinCanvas[id];
+  const S = SKINS[id];
+  if (S.kind === 'carbon') return (skinCanvas[id] = carbonCanvas(false));
+  const n = 256, c = document.createElement('canvas'); c.width = c.height = n;
+  const x = c.getContext('2d'), r = mulberry(hashStr(id));
+  const wrap = (fn) => { for (const ox of [-n, 0, n]) for (const oy of [-n, 0, n]) fn(ox, oy); };
+  const blob = (px, py, rx, ry, a) => wrap((ox, oy) => { x.beginPath(); x.ellipse(px + ox, py + oy, rx, ry, a, 0, 6.29); x.fill(); });
+  const S2 = n / 128; // the old patterns were drawn at 128
+  if (S.kind === 'neon') {
+    x.fillStyle = '#000'; x.fillRect(0, 0, n, n); x.strokeStyle = '#3ff0ff'; x.lineWidth = 2.2 * S2;
+    for (let i = 0; i < 9; i++) { const y = r() * n, k = r() * 80; x.beginPath(); x.moveTo(0, y); x.lineTo(80 + k, y); x.lineTo(120 + k, y + 36); x.lineTo(n, y + 36); x.stroke(); }
+    return (skinCanvas[id] = c);
+  }
+  if (S.kind === 'forged') {
+    x.fillStyle = '#111215'; x.fillRect(0, 0, n, n);
+    for (let i = 0; i < 260; i++) {
+      const px = r() * n, py = r() * n, a = r() * 6.28, l = 10 + r() * 30, w = 4 + r() * 12, v = 22 + r() * 40 | 0;
+      wrap((ox, oy) => {
+        x.save(); x.translate(px + ox, py + oy); x.rotate(a);
+        x.fillStyle = `rgb(${v},${v + 3},${v + 7})`; x.beginPath(); x.moveTo(-l / 2, -w / 2); x.lineTo(l / 2 - r() * 6, -w / 2 + r() * 3); x.lineTo(l / 2, w / 2); x.lineTo(-l / 2 + r() * 6, w / 2); x.fill();
+        x.strokeStyle = 'rgba(255,255,255,.06)'; x.lineWidth = .6; for (let k = -w / 2 + 1; k < w / 2; k += 1.6) { x.beginPath(); x.moveTo(-l / 2, k); x.lineTo(l / 2, k); x.stroke(); }
+        x.restore();
+      });
+    }
+    return (skinCanvas[id] = c);
+  }
+  if (S.kind === 'damascus') {
+    for (let y = -20; y < n + 20; y += 3) {
+      x.strokeStyle = (y / 3 & 1) ? '#9a9da0' : '#3a3e42'; x.lineWidth = 2.4; x.beginPath();
+      for (let xx = 0; xx <= n; xx += 4) { const w = Math.sin(xx / n * 6.283 * 2 + y * .02) * 14 + Math.sin(xx / n * 6.283 * 5 + y * .05) * 5; xx ? x.lineTo(xx, y + w) : x.moveTo(xx, y + w); }
+      x.stroke();
+    }
+    grain(x, n, 14, r); return (skinCanvas[id] = c);
+  }
+  if (S.kind === 'wood') {
+    x.fillStyle = S.base; x.fillRect(0, 0, n, n);
+    for (let i = 0; i < 90; i++) {
+      const y0 = r() * n, amp = 2 + r() * 6, f = 1 + (r() * 3 | 0), ph = r() * 6.28;
+      x.strokeStyle = r() < .55 ? `rgba(40,22,10,${.25 + r() * .35})` : `rgba(140,95,55,${.15 + r() * .25})`; x.lineWidth = .6 + r() * 1.8; x.beginPath();
+      for (let xx = 0; xx <= n; xx += 4) { const yy = y0 + Math.sin(xx / n * 6.283 * f + ph) * amp; xx ? x.lineTo(xx, yy) : x.moveTo(xx, yy); }
+      x.stroke();
+    }
+    grain(x, n, 10, r); return (skinCanvas[id] = c);
+  }
+  if (S.kind === 'worn') {
+    x.fillStyle = S.base; x.fillRect(0, 0, n, n); grain(x, n, 10, r);
+    for (let i = 0; i < 60; i++) { x.fillStyle = `rgba(150,155,160,${.25 + r() * .4})`; const px = r() * n, py = r() * n; x.beginPath(); for (let k = 0; k < 6; k++) { const a = k / 6 * 6.28, rr = 1 + r() * 4; k ? x.lineTo(px + Math.cos(a) * rr * 1.6, py + Math.sin(a) * rr) : x.moveTo(px + rr * 1.6, py); } x.fill(); }
+    scuffs(x, n, r, 160, 'rgba(190,195,200,.18)'); scuffs(x, n, r, 80, 'rgba(110,80,50,.15)');
+    return (skinCanvas[id] = c);
+  }
+  x.fillStyle = S.base || '#444'; x.fillRect(0, 0, n, n);
+  if (S.kind === 'cerakote') { grain(x, n, 9, r); scuffs(x, n, r, 30); return (skinCanvas[id] = c); }
+  if (S.kind === 'scales') {
+    const w = 22, h = 14;
+    for (let row = -1; row < n / h + 1; row++) for (let col = -1; col < n / w + 1; col++) {
+      const cx = col * w + (row & 1 ? w / 2 : 0), cy = row * h, k = r();
+      const g = x.createRadialGradient(cx, cy - 2, 1, cx, cy, w * .6);
+      const base = k < .18 ? S.spots[2] : k < .5 ? S.spots[0] : k < .8 ? S.base : S.spots[1];
+      g.addColorStop(0, base); g.addColorStop(1, '#1b1510');
+      x.fillStyle = g; x.beginPath(); x.moveTo(cx, cy - h * .75); x.quadraticCurveTo(cx + w * .55, cy, cx, cy + h * .75); x.quadraticCurveTo(cx - w * .55, cy, cx, cy - h * .75); x.fill();
+    }
+    grain(x, n, 8, r); return (skinCanvas[id] = c);
+  }
+  if (S.kind === 'fleck') {
+    for (let i = 0; i < 900; i++) { x.fillStyle = S.spots[(r() * S.spots.length) | 0]; const px = r() * n, py = r() * n, s = 1.5 + r() * 3; for (let k = 0; k < 3; k++) blob(px + (r() - .5) * 6, py + (r() - .5) * 6, s, s * (.7 + r() * .4), r() * 3); }
+    grain(x, n, 8, r); return (skinCanvas[id] = c);
+  }
+  if (S.kind === 'multi') {
+    for (let i = 0; i < 46; i++) { x.fillStyle = S.spots[(r() * S.spots.length) | 0]; const px = r() * n, py = r() * n; for (let k = 0; k < 4; k++) blob(px + (r() - .5) * 30, py + (r() - .5) * 18, 8 + r() * 16, 5 + r() * 9, r() * 3); }
+    for (let i = 0; i < 70; i++) { x.fillStyle = S.specks[(r() * 2) | 0]; const px = r() * n, py = r() * n; wrap((ox, oy) => { x.save(); x.translate(px + ox, py + oy); x.rotate(r() * 3); x.fillRect(-3, -1, 6 + r() * 8, 2 + r() * 2); x.restore(); }); }
+    grain(x, n, 8, r); return (skinCanvas[id] = c);
+  }
+  for (let i = 0; i < (S.kind === 'digital' ? 560 : S.kind === 'stripes' ? 16 : 26 * 2); i++) {
+    x.fillStyle = S.spots[(r() * S.spots.length) | 0];
+    const px = r() * n, py = r() * n;
+    if (S.kind === 'digital') { const s = 4 * (1 + ((r() * 3) | 0)); x.fillRect(Math.floor(px / 4) * 4, Math.floor(py / 4) * 4, s, 4 * (1 + ((r() * 2) | 0))); }
+    else if (S.kind === 'stripes') { const w = (3 + r() * 6) * S2, t = r() * 0.6 - 0.3, L = (34 + r() * 10) * S2; wrap((ox, oy) => { x.save(); x.translate(px + ox, py + oy); x.rotate(t + 0.9); x.beginPath(); x.ellipse(0, 0, L, w, 0, 0, 6.29); x.fill(); x.restore(); }); }
+    else blob(px, py, (8 + r() * 16) * S2 * .8, (5 + r() * 10) * S2 * .8, r() * 3);
+  }
+  grain(x, n, 8, r); scuffs(x, n, r, 24);
+  return (skinCanvas[id] = c);
+}
+function skinTexture(id, bump) {
+  const S = SKINS[id];
+  const t = new THREE.CanvasTexture(bump ? carbonCanvas(true) : skinCanvasFor(id)); t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.anisotropy = renderer.capabilities.getMaxAnisotropy ? Math.min(8, renderer.capabilities.getMaxAnisotropy()) : 1;
+  if (S.kind === 'digital') t.magFilter = THREE.NearestFilter;
+  if (S.kind === 'carbon') t.repeat.set(.42, .42); // tows about 2cm wide on the gun, big enough to read
   return t;
+}
+// what the loadout screen shows for a skin: a piece of the real pattern
+function skinSwatch(id) {
+  const S = SKINS[id];
+  if (S.kind === 'factory') return `linear-gradient(135deg,${S.sw[0]} 50%,${S.sw[1]} 50%)`;
+  if (S.kind === 'gold' || S.kind === 'chrome' || S.kind === 'blued') return `linear-gradient(135deg,${S.sw[1]},${S.sw[0]} 45%,#fff 52%,${S.sw[0]} 60%,${S.sw[1]})`;
+  if (!S.url) { const c = skinCanvasFor(id), s = document.createElement('canvas'); s.width = s.height = 48; s.getContext('2d').drawImage(c, 0, 0, S.kind === 'carbon' ? 160 : 64, S.kind === 'carbon' ? 160 : 64, 0, 0, 48, 48); S.url = s.toDataURL(); }
+  return `url(${S.url}) center/cover`;
 }
 // { metal, furn, dark } materials for a skin; factory returns null so the gun keeps its own colours
 function skinMats(id) {
   if (!SKINS[id] || id === 'factory') return null;
   if (skinCache[id]) return skinCache[id];
-  const S = SKINS[id];
-  let metal, dark = null;
+  const S = SKINS[id], env = skinEnv(), P = (o) => new THREE.MeshPhongMaterial(o);
+  let metal, furn = null, dark = null;
   if (S.kind === 'gold') {
-    metal = new THREE.MeshPhongMaterial({ color: 0xd4a53a, shininess: 90, specular: 0xffe3a0, flatShading: true });
-    dark = new THREE.MeshPhongMaterial({ color: 0x8a6420, shininess: 60, specular: 0xc9a050, flatShading: true });
+    metal = P({ color: 0xd9a93c, shininess: 110, specular: 0xffe3a0, envMap: env, combine: THREE.MultiplyOperation, reflectivity: .55 });
+    dark = P({ color: 0x8a6420, shininess: 80, specular: 0xc9a050, envMap: env, combine: THREE.MultiplyOperation, reflectivity: .4 });
+  } else if (S.kind === 'chrome') {
+    metal = P({ color: 0xe6ebf0, shininess: 160, specular: 0xffffff, envMap: env, combine: THREE.MultiplyOperation, reflectivity: .92 });
+    dark = P({ color: 0x5a6068, shininess: 120, specular: 0xaaaaaa, envMap: env, combine: THREE.MixOperation, reflectivity: .3 });
+  } else if (S.kind === 'blued') {
+    metal = P({ color: 0x1d2430, shininess: 100, specular: 0x7f90b0, envMap: env, combine: THREE.MixOperation, reflectivity: .18 });
+  } else if (S.kind === 'wood') {
+    metal = P({ color: 0x1d2430, shininess: 100, specular: 0x7f90b0, envMap: env, combine: THREE.MixOperation, reflectivity: .18 });
+    furn = P({ map: skinTexture(id), shininess: 40, specular: 0x3a2a1a });
   } else if (S.kind === 'neon') {
-    const t = skinTexture(id);
-    metal = new THREE.MeshPhongMaterial({ color: 0x15181c, emissive: 0xffffff, emissiveMap: t, shininess: 30, flatShading: true });
-  } else metal = new THREE.MeshPhongMaterial({ map: skinTexture(id), shininess: S.kind === 'carbon' ? 40 : 8, specular: 0x222222, flatShading: true });
-  return (skinCache[id] = { metal, furn: metal, dark });
+    metal = P({ color: 0x15181c, emissive: 0xffffff, emissiveMap: skinTexture(id), shininess: 60, specular: 0x333333 });
+  } else if (S.kind === 'carbon') {
+    // clear-coated weave: the twill texture under a glossy coat that reflects the sky
+    metal = P({ map: skinTexture(id), shininess: 80, specular: 0x5c636b, envMap: env, combine: THREE.MixOperation, reflectivity: .08 });
+  } else if (S.kind === 'forged') {
+    metal = P({ map: skinTexture(id), shininess: 140, specular: 0x9aa3ad, envMap: env, combine: THREE.MixOperation, reflectivity: .12 });
+  } else if (S.kind === 'damascus') {
+    metal = P({ map: skinTexture(id), shininess: 90, specular: 0xb0b4b8, envMap: env, combine: THREE.MixOperation, reflectivity: .22 });
+  } else if (S.kind === 'worn') {
+    metal = P({ map: skinTexture(id), shininess: 30, specular: 0x555555 });
+  } else metal = P({ map: skinTexture(id), shininess: S.kind === 'cerakote' ? 14 : 10, specular: 0x262626 });
+  return (skinCache[id] = { metal, furn: furn || metal, dark });
 }
 
 /* ---------- rarity, for guns found in crates ---------- */
@@ -202,7 +357,7 @@ function randomGun(r, tier) {
     const cat = cats.splice((r() * cats.length) | 0, 1)[0], ch = modChoices(id, cat).filter(v => v !== att[cat]);
     if (ch.length) att[cat] = ch[(r() * ch.length) | 0];
   }
-  const pools = [['factory'], ['woodland', 'desert', 'arctic', 'urban', 'ocean'], ['tiger', 'crimson', 'carbon', 'urban'], ['gold', 'neon']];
+  const pools = [['factory', 'fde', 'odgreen'], ['woodland', 'desert', 'arctic', 'urban', 'ocean', 'multi', 'fleck', 'walnut'], ['tiger', 'crimson', 'carbon', 'python', 'worn', 'blued'], ['gold', 'neon', 'chrome', 'damascus', 'forged', 'carbon']];
   const pool = pools[tier];
   return { id, att, skin: pool[(r() * pool.length) | 0], tier };
 }
@@ -426,7 +581,7 @@ function makeGunModel(id, att, skin, worldModel) {
   return { group: g, flash, slide: g.userData.slide || null, muzzle: new THREE.Vector3(0, .008, mz), hip, adsPos: new THREE.Vector3(0, -sightY, adsZ), mag: magMesh, magY: magMesh ? magMesh.position.y : 0,
     eject: new THREE.Vector3(.04, .02, def.pistol ? -.02 : .02) };
 }
-const sharedMats = () => { const s = new Set([...Object.values(matCache), ...Object.values(gunMats)]); for (const k in skinCache) { s.add(skinCache[k].metal); if (skinCache[k].dark) s.add(skinCache[k].dark); } return s; };
+const sharedMats = () => { const s = new Set([...Object.values(matCache), ...Object.values(gunMats)]); for (const k in skinCache) { s.add(skinCache[k].metal); s.add(skinCache[k].furn); if (skinCache[k].dark) s.add(skinCache[k].dark); } return s; };
 function disposeGunModel(m) {
   if (!m) return;
   m.group.parent && m.group.parent.remove(m.group);
