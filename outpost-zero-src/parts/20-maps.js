@@ -409,6 +409,113 @@ function buildFrontier(B) {
   for (let i = 0; i < 120; i++) { const x = B.R(-300, 300), z = B.R(-300, 300), l = B.R(3, 7), al = B.r() < 0.5; if (roadDist(x, z) > 7 && isClear(x, z, l / 2 + 0.5)) B.wall(x, z, l, al, B.R(1.0, 1.4), [0x8f8b80, 0x9e9888]); }
   B.mountains(world.half + 60, world.half + 120, [0x7f8c6d, 0x8a8f86, 0x9a9a8c], 45, 90);
 }
+/* ---------- Red Canyon: a long gorge between red cliffs, ruins and rock arches ---------- */
+function canyonH(x, z) {
+  const wall = sstep(22, 46, Math.abs(z + 9 * Math.sin(x * 0.03))) * 16;
+  return wall + 0.9 * Math.sin(x * 0.07) * Math.cos(z * 0.09) + 0.5 * Math.cos(x * 0.13 + z * 0.05);
+}
+function buildCanyon(B) {
+  const RED = [0xb05a3c, 0xa14f33, 0xc0704c, 0x8f4a30];
+  for (const [x, w, d, h] of [[-80, 8, 7, 3.4], [-55, 9, 7, 5.5], [-30, 7, 7, 3.2], [-12, 10, 8, 4.2], [-100, 7, 6, 3.4]])
+    B.mirror(x, B.R(-8, 8), Math.max(w, d) / 2 + 1, (px, pz) => B.building(px, pz, w, d, h, h > 4, ADOBE, true));
+  // arches: two pillars and a span you can walk under
+  for (const x of [-68, -22]) B.mirror(x, 0, 2, (px, pz) => { const g = heightAt(px, pz); B.box(px, pz - 9, 3, 3, 9, 0xa65638); B.box(px, pz + 9, 3, 3, 9, 0xa65638); B.box(px, pz, 3.2, 21, 2.4, 0xb4603f, { base: g + 8 }); });
+  for (let i = 0; i < 70; i++) { const x = B.R(-108, 0), z = B.R(-26, 26), s = B.R(0.8, 3.2); B.mirror(x, z, s + 0.5, (px, pz) => B.rock(px, pz, s, RED)); }
+  for (let i = 0; i < 40; i++) { const x = B.R(-108, 0), z = B.R(-24, 24), l = B.R(2.5, 6), al = B.r() < 0.6;
+    B.mirror(x, z, l / 2 + 0.6, (px, pz) => B.wall(px, pz, l, al, B.R(1.0, 1.6), [0xc49470, 0xb07f5c])); }
+  for (let i = 0; i < 30; i++) { const x = B.R(-108, 0), z = B.R(-22, 22), st = B.r() < 0.35; B.mirror(x, z, 1, (px, pz) => B.crate(px, pz, st, [0x8a6a43, 0x6e5a3e])); }
+  for (let i = 0, n = 0; i < 600 && n < 26; i++) { const x = B.R(-108, 0), z = B.R(-24, 24); if (B.mirror(x, z, 1.2, (px, pz) => B.tree(px, pz, 'palm'))) n++; }
+  // rocks scattered on the rims, for snipers
+  for (let i = 0; i < 40; i++) { const x = B.R(-108, 0), z = B.R(36, 100) * (B.r() < 0.5 ? 1 : -1), s = B.R(1, 3.4); B.mirror(x, z, s + 0.5, (px, pz) => B.rock(px, pz, s, RED)); }
+  B.mountains(world.half + 90, world.half + 150, [0xa75b3d, 0xb86c48, 0x92503a], 35, 75);
+}
+
+/* ---------- Airfield: a runway, hangars, a control tower and parked planes ---------- */
+function plane(B, x, z, along, col) {
+  const g = heightAt(x, z), L = 13, sx = along ? L : 1.9, sz = along ? 1.9 : L;
+  B.box(x, z, sx, sz, 1.9, col, { base: g + 0.9 });                                       // fuselage
+  B.box(x, z, along ? 2.6 : 14, along ? 14 : 2.6, 0.28, col, { base: g + 1.9 });            // wings
+  const tx = along ? x - L / 2 + 0.8 : x, tz = along ? z : z - L / 2 + 0.8;
+  B.box(tx, tz, along ? 1.4 : 5, along ? 5 : 1.4, 0.22, col, { base: g + 2.6 });             // tail plane
+  B.box(tx, tz, along ? 1.6 : 0.25, along ? 0.25 : 1.6, 2.2, col, { base: g + 2.8 });        // fin
+  B.inst.win.push({ p: [along ? x + L / 2 - 1.6 : x, g + 2.5, along ? z : z + L / 2 - 1.6], s: [along ? 1.6 : 1.7, 0.5, along ? 1.7 : 1.6], c: 0x23313b });
+  for (const o of [-2.2, 2.2]) B.inst.wheel.push({ p: [along ? x + 1 : x + o, g + 0.4, along ? z + o : z + 1], s: [0.4, 0.3, 0.4], c: 0x1c1e20, r: along ? [Math.PI / 2, 0, 0] : [0, 0, Math.PI / 2] });
+}
+function buildAirfield(B) {
+  B.fence(3.4, 0x9aa0a4);
+  // control tower in the middle, south of the runway
+  const g = heightAt(0, 24);
+  const tw = B.building(0, 24, 5, 5, 14, true, CONCRETE, true);
+  B.box(0, 24, 8, 8, 3.2, 0x6f7a84, { base: tw.maxY });
+  B.inst.win.push({ p: [0, tw.maxY + 1.7, 24], s: [8.1, 1.6, 8.1], c: 0x2a3d4c });
+  // hangars along both sides
+  for (const [x, z] of [[-90, -42], [-50, -42], [-110, 40], [-62, 46]])
+    B.mirror(x, z, 13, (px, pz) => { const h = B.building(px, pz, 24, 16, 8.5, false, [0x8a949a, 0x7d878e], true);
+      B.inst.win.push({ p: [px, h.ground + 3.4, pz + (pz > 0 ? -8.06 : 8.06)], s: [16, 6.8, 0.1], c: 0x30363b }); });
+  for (let i = 0, n = 0; i < 200 && n < 5; i++) { const x = B.R(-115, -15), z = B.R(-10, 10) + (B.r() < 0.5 ? 26 : -26), col = B.pick([0xd8dcdf, 0xb8c0c6, 0x8d9aa4, 0x6f7f5c]);
+    if (B.mirror(x, z, 8, (px, pz) => plane(B, px, pz, true, col))) n++; }
+  for (const [x, z, r, h] of [[-120, 75, 5, 6], [-108, 78, 4, 5]]) B.mirror(x, z, r + 1, (px, pz) => B.tank(px, pz, r, h, 0xd3d6d2));
+  for (let i = 0, n = 0; i < 200 && n < 8; i++) { const x = B.R(-120, -10), z = B.R(50, 120) * (B.r() < 0.5 ? 1 : -1), al = B.r() < 0.5, col = B.pick(BOXCOL);
+    if (B.mirror(x, z, 5, (px, pz) => B.container(px, pz, al, 6, B.r() < 0.5 ? 1 : 2, col))) n++; }
+  for (let i = 0; i < 46; i++) { const x = B.R(-120, -4), z = B.R(-124, 124); if (Math.abs(z) < 16) continue; const l = B.R(2.5, 5), al = B.r() < 0.5;
+    B.mirror(x, z, l / 2 + 0.6, (px, pz) => B.wall(px, pz, l, al, 1.1, [0xc9c3b2, 0xd9b84a])); }
+  for (let i = 0; i < 36; i++) { const x = B.R(-120, -4), z = B.R(-124, 124); if (Math.abs(z) < 14) continue; const st = B.r() < 0.3; B.mirror(x, z, 1, (px, pz) => B.crate(px, pz, st)); }
+  for (let t = -120; t <= 120; t += 20) B.mirror(t, 15.5, 0.4, (px, pz) => B.lamp(px, pz));
+  for (let i = 0, n = 0; i < 400 && n < 40; i++) { const x = B.R(-128, 0), z = B.R(70, 128) * (B.r() < 0.5 ? 1 : -1); if (B.mirror(x, z, 1.6, (px, pz) => B.tree(px, pz, 'leaf'))) n++; }
+  B.mountains(world.half + 120, world.half + 170, [0x7f8c6d, 0x8a8f86], 25, 55);
+}
+
+/* ---------- Quarry: a stepped open pit with machinery on the benches ---------- */
+function quarryH(x, z) {
+  const r = Math.hypot(x, z);
+  if (r > 74) return 0.6 * Math.sin(x * 0.05) * Math.cos(z * 0.06);
+  const t = (74 - r) / 10, k = Math.floor(t), f = t - k;
+  return -2.6 * (Math.min(k, 5) + (k < 5 ? sstep(0.78, 1, f) : 0));
+}
+function buildQuarry(B) {
+  const STONE = [0xa39e94, 0x8f8a80, 0xb4aea2];
+  // machinery: "dump trucks", conveyors, sheds on the benches
+  for (const [x, z] of [[-30, 10], [-52, -20], [-14, -44], [-60, 28]]) B.mirror(x, z, 4, (px, pz) => {
+    const g = heightAt(px, pz); B.box(px, pz, 6, 3.2, 2.4, 0xd19a2e, { base: g + 0.9 }); B.box(px + 2, pz, 2, 3, 1.6, 0x3b4148, { base: g + 3.3 });
+    for (const a of [-2, 2]) for (const b of [-1.4, 1.4]) B.inst.wheel.push({ p: [px + a, g + 0.75, pz + b], s: [0.75, 0.5, 0.75], c: 0x1c1e20, r: [Math.PI / 2, 0, 0] }); });
+  B.mirror(-40, 0, 2, (px, pz) => B.pipes(px, pz, 24, false));
+  for (const [x, z, w, d, h] of [[-88, -20, 9, 7, 4.2], [-80, 30, 10, 8, 3.6], [-95, 70, 8, 8, 3.4], [-70, -80, 9, 7, 5.5]])
+    B.mirror(x, z, Math.max(w, d) / 2 + 1, (px, pz) => B.building(px, pz, w, d, h, h > 4, CONCRETE, true));
+  for (const [x, z] of [[-84, 0], [-60, 84]]) B.mirror(x, z, 6, (px, pz) => B.crane(px, pz));
+  for (let i = 0; i < 90; i++) { const x = B.R(-100, 0), z = B.R(-100, 100), s = B.R(0.8, 2.8); B.mirror(x, z, s + 0.5, (px, pz) => B.rock(px, pz, s, STONE)); }
+  for (let i = 0; i < 40; i++) { const x = B.R(-100, 0), z = B.R(-100, 100), l = B.R(2.5, 5), al = B.r() < 0.5; B.mirror(x, z, l / 2 + 0.6, (px, pz) => B.wall(px, pz, l, al, 1.1, [0xd9b84a, 0x9b9585])); }
+  for (let i = 0; i < 34; i++) { const x = B.R(-100, 0), z = B.R(-100, 100), st = B.r() < 0.3; B.mirror(x, z, 1, (px, pz) => B.crate(px, pz, st)); }
+  for (let i = 0, n = 0; i < 400 && n < 50; i++) { const x = B.R(-100, 0), z = B.R(-100, 100); if (Math.hypot(x, z) < 80) continue; if (B.mirror(x, z, 1.6, (px, pz) => B.tree(px, pz, 'pine'))) n++; }
+  B.mountains(world.half + 90, world.half + 150, [0x8a8f86, 0x9a9a8c, 0x7f8478], 30, 65);
+}
+
+/* ---------- Bayou: swamp water, islands, stilt shacks and boardwalks ---------- */
+function bayouH(x, z) {
+  return 0.9 * Math.sin(x * 0.045) * Math.sin(z * 0.05) + 0.6 * Math.cos(x * 0.09) * Math.cos(z * 0.08) + 0.35 - 0.3 * sstep(60, 110, Math.max(Math.abs(x), Math.abs(z)));
+}
+function buildBayou(B) {
+  const SHACK = [0x7a6a52, 0x6b5e4a, 0x8a7a60, 0x5f6b55];
+  // shacks on stilts: a wooden box raised off the water, with steps up
+  for (const [x, z, w, d] of [[-20, -10, 7, 6], [-45, 30, 8, 6], [-70, -40, 7, 7], [-30, 70, 8, 6], [-85, 20, 7, 6], [-55, -80, 8, 7], [-10, 40, 6, 6]])
+    B.mirror(x, z, Math.max(w, d) / 2 + 2, (px, pz) => {
+      const g = Math.max(heightAt(px, pz), world.water) ;
+      for (const a of [-1, 1]) for (const b of [-1, 1]) B.box(px + a * (w / 2 - 0.3), pz + b * (d / 2 - 0.3), 0.35, 0.35, 1.6, 0x4b3a2a);
+      const hut = B.box(px, pz, w, d, 3.2, B.pick(SHACK), { base: g + 1.4 });
+      B.inst.roof.push({ p: [px, hut.maxY + 0.9, pz], s: [(w / 2 + 0.6) / 0.7071, 1.8, (d / 2 + 0.6) / 0.7071], c: 0x4a3a2c, r: [0, Math.PI / 4, 0] });
+      hut.maxY += 1.1; hut.box3.max.y = hut.maxY;
+      B.inst.win.push({ p: [px, g + 2.6, pz + d / 2 + 0.05], s: [1.2, 1.8, 0.1], c: 0x2a2520 });
+      for (let i = 0; i < 3; i++) B.box(px - 0.8 + 0, pz + d / 2 + 0.7 + i * 0.9, 1.6, 0.9, 0, 0x6b5238, { top: g + 1.4 - i * 0.5 });
+    });
+  // boardwalks across the water
+  for (let i = 0, n = 0; i < 200 && n < 14; i++) { const x = B.R(-100, -5), z = B.R(-100, 100), al = B.r() < 0.5, l = B.R(8, 18);
+    if (B.mirror(x, z, l / 2 + 0.5, (px, pz) => { const g = Math.max(heightAt(px, pz), world.water); B.box(px, pz, al ? l : 2, al ? 2 : l, 0, 0x7a5f40, { top: g + 0.35, base: g - 0.4 }); })) n++; }
+  for (let i = 0, n = 0; i < 1600 && n < 200; i++) { const x = B.R(-110, 0), z = B.R(-110, 110); if (heightAt(x, z) < world.water + 0.15) continue;
+    if (B.mirror(x, z, 1.6, (px, pz) => B.tree(px, pz, B.r() < 0.3 ? 'pine' : 'leaf'))) n++; }
+  for (let i = 0; i < 40; i++) { const x = B.R(-105, 0), z = B.R(-105, 105), s = B.R(0.6, 1.8); B.mirror(x, z, s + 0.5, (px, pz) => B.rock(px, pz, s, [0x5f6455, 0x6b6e5e])); }
+  for (let i = 0; i < 30; i++) { const x = B.R(-105, 0), z = B.R(-105, 105), st = B.r() < 0.3; B.mirror(x, z, 1, (px, pz) => B.crate(px, pz, st, [0x6e5a3e, 0x5f6b45])); }
+  for (let i = 0; i < 26; i++) { const x = B.R(-105, 0), z = B.R(-105, 105), l = B.R(3, 6), al = B.r() < 0.5; B.mirror(x, z, l / 2 + 0.6, (px, pz) => B.wall(px, pz, l, al, B.R(0.9, 1.2), [0x5a4a36, 0x6b5a44])); }
+  B.mountains(world.half + 110, world.half + 160, [0x56664c, 0x627258], 25, 50);
+}
 const streetDist = v => Math.abs(v - Math.round(v / 30) * 30);
 const MAPS = {
   valley: { name: 'Valley', blurb: 'Huge open valley, town in the middle', half: 200, axis: 'x', sky: 0xb4ccd8, fog: [80, 340], hemi: [0xdcefff, 0x5d6b3c, 0.78], sun: [0xfff0d4, 0.9],
@@ -450,6 +557,22 @@ const MAPS = {
     h: (x, z) => 4.2 * Math.sin(x * 0.011) * Math.cos(z * 0.013) + 1.8 * Math.sin(x * 0.031 + z * 0.024) + 0.7 * Math.cos(z * 0.07 - x * 0.02),
     ground: (c, h, n, x, z) => roadDist(x, z) < 4.5 ? c.setHSL(0.09, 0.22, 0.4 + n * 0.04) : c.setHSL(0.22 + n * 0.05, 0.3, 0.34 + n * 0.05 + h * 0.01),
     build: buildFrontier, grass: 9000, big: true },
+  canyon: { name: 'Red Canyon', blurb: 'Long gorge between red cliffs, arches and ruins', half: 110, axis: 'x', sky: 0xe3c9a8, fog: [60, 280], hemi: [0xffe9cc, 0x8a4a30, 0.82], sun: [0xffd9a8, 1.0],
+    h: canyonH,
+    ground: (c, h, n) => h > 6 ? c.setHSL(0.04 + n * 0.02, 0.45, 0.4 + n * 0.05) : c.setHSL(0.07 + n * 0.02, 0.4, 0.5 + n * 0.05 + h * 0.01),
+    build: buildCanyon, grass: 800, noGrass: (x, z) => canyonH(x, z) > 4 },
+  airfield: { name: 'Airfield', blurb: 'Runway, hangars, a control tower and parked planes', half: 130, axis: 'x', sky: 0xb9cfdc, fog: [80, 330], hemi: [0xe2f0fa, 0x5f6b4a, 0.8], sun: [0xfff2d8, 0.95],
+    h: (x, z) => Math.abs(z) < 18 ? 0 : 0.6 * Math.sin(x * 0.03) * Math.cos(z * 0.035) * sstep(18, 30, Math.abs(z)),
+    ground: (c, h, n, x, z) => Math.abs(z) < 0.6 && ((x % 24) + 24) % 24 < 12 ? c.setHex(0xe8e4d8) : Math.abs(z) < 12 ? c.setHSL(0.6, 0.04, 0.24 + n * 0.03) : Math.abs(z) < 14 ? c.setHex(0xd9b84a) : c.setHSL(0.22 + n * 0.05, 0.3, 0.38 + n * 0.05),
+    build: buildAirfield, grass: 4000, noGrass: (x, z) => Math.abs(z) < 15 },
+  quarry: { name: 'Quarry', blurb: 'A stepped open pit with trucks on every ledge', half: 100, axis: 'x', sky: 0xc4ccd0, fog: [55, 260], hemi: [0xe8eef2, 0x6e6a60, 0.82], sun: [0xfff0d8, 0.95],
+    h: quarryH,
+    ground: (c, h, n) => h < -0.5 ? c.setHSL(0.09, 0.12, 0.5 + n * 0.06 + h * 0.008) : c.setHSL(0.2 + n * 0.05, 0.28, 0.36 + n * 0.05),
+    build: buildQuarry, grass: 2500, noGrass: (x, z) => Math.hypot(x, z) < 76 },
+  bayou: { name: 'Bayou', blurb: 'Swamp water, islands, shacks on stilts', half: 110, axis: 'z', sky: 0xa9b8a6, fog: [28, 190], hemi: [0xd8e4cc, 0x3f4a30, 0.75], sun: [0xf2e6c2, 0.8],
+    h: bayouH,
+    ground: (c, h, n) => h < 0.05 ? c.setHSL(0.15, 0.3, 0.26 + n * 0.04) : c.setHSL(0.2 + n * 0.05, 0.38, 0.27 + n * 0.05),
+    build: buildBayou, water: 0.12, grass: 5000 },
 };
 const MAP_IDS = Object.keys(MAPS);
 
@@ -529,6 +652,7 @@ function loadMap(id) {
   for (let i = 0; i < (M.grass || 0); i++) {
     const x = B.R(-M.half, M.half), z = B.R(-M.half, M.half), h = heightAt(x, z);
     if (world.water != null && h < 1.1) continue;
+    if (M.noGrass && M.noGrass(x, z)) continue;
     let blocked = false;
     for (const b of world.boxes) if (x > b.minX - 0.3 && x < b.maxX + 0.3 && z > b.minZ - 0.3 && z < b.maxZ + 0.3) { blocked = true; break; }
     if (blocked) continue;
