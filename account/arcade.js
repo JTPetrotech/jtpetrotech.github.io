@@ -116,10 +116,19 @@ export async function start() {
     ]);
     mods = { core, authMod, store };
     const app = core.initializeApp(FIREBASE_CONFIG);
-    auth = authMod.getAuth(app);
+    // Kept in localStorage, chosen up front. Picking it after the fact (getAuth
+    // then setPersistence) made Firebase answer "nobody" first while it moved
+    // the user across, which showed "Sign in" for a second after a reload and
+    // could have looked like a sign-out to sync.js.
+    try {
+      auth = authMod.initializeAuth(app, { persistence: authMod.browserLocalPersistence });
+    } catch {
+      auth = authMod.getAuth(app);
+      await authMod.setPersistence(auth, authMod.browserLocalPersistence).catch(() => {});
+    }
+    // Wait for the stored user to be read, so the first answer is the real one.
+    if (auth.authStateReady) await auth.authStateReady().catch(() => {});
     db = store.getFirestore(app);
-    // Stay signed in across reloads, tabs and games.
-    await authMod.setPersistence(auth, authMod.browserLocalPersistence).catch(() => {});
     state = 'cloud';
     authMod.onAuthStateChanged(auth, async (user) => {
       if (!user) {
