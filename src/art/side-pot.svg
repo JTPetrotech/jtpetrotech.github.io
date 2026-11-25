@@ -1,13 +1,75 @@
-      <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
-        <ellipse cx="60" cy="94" rx="44" ry="9" fill="#10291f"/>
-        <g transform="rotate(-14 46 58)">
-          <rect x="24" y="26" width="44" height="62" rx="6" fill="#e9eef5" stroke="#b9c6d4" stroke-width="2"/>
-          <path d="M46 40 q10 11 10 17 a10 10 0 0 1 -20 0 q0 -6 10 -17 z" fill="#15191f"/>
-          <rect x="43" y="60" width="6" height="12" rx="2" fill="#15191f"/>
-        </g>
-        <g transform="rotate(10 78 60)">
-          <rect x="58" y="30" width="44" height="62" rx="6" fill="#e9eef5" stroke="#b9c6d4" stroke-width="2"/>
-          <path d="M80 48 q9 9 9 15 a9 9 0 0 1 -18 0 q0 -6 9 -15 z" fill="#c0392b"/>
-          <rect x="77" y="63" width="6" height="11" rx="2" fill="#c0392b"/>
-        </g>
-      </svg>
+<svg class="scene" viewBox="0 0 400 170" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+  <!-- Pocket aces on the felt, chips stacked either side. Ids prefixed sp-. -->
+  <defs>
+    <radialGradient id="sp-felt" cx=".5" cy=".55" r=".75">
+      <stop offset="0" stop-color="#1f8a5c"/>
+      <stop offset=".6" stop-color="#11603f"/>
+      <stop offset="1" stop-color="#062418"/>
+    </radialGradient>
+    <linearGradient id="sp-rail" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5a3420"/>
+      <stop offset="1" stop-color="#2a170d"/>
+    </linearGradient>
+    <linearGradient id="sp-card" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#e3e9f0"/>
+    </linearGradient>
+    <filter id="sp-shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="6" stdDeviation="5" flood-color="#000" flood-opacity=".45"/>
+    </filter>
+    <!-- one chip, drawn as a short cylinder seen from a little above -->
+    <g id="sp-chip">
+      <ellipse cx="0" cy="3" rx="20" ry="7" fill="currentColor"/>
+      <rect x="-20" y="-1" width="40" height="4" fill="currentColor"/>
+      <path d="M-20 -1 v4 a20 7 0 0 0 40 0 v-4 z" fill="#000" opacity=".32"/>
+      <path d="M-14 1 h5 M-3 2 h6 M9 1 h5" stroke="#fff" stroke-width="4" opacity=".85"/>
+      <ellipse cx="0" cy="-1" rx="20" ry="7" fill="currentColor"/>
+      <ellipse cx="0" cy="-1" rx="13" ry="4.4" fill="none" stroke="#fff" stroke-width="1.6" stroke-dasharray="4 3.2" opacity=".85"/>
+      <ellipse cx="0" cy="-1" rx="8" ry="2.6" fill="#fff" opacity=".18"/>
+    </g>
+  </defs>
+
+  <rect width="400" height="170" fill="url(#sp-felt)"/>
+  <!-- the table rail curving across the top -->
+  <path d="M-10 0 H410 V18 Q200 46 -10 18 Z" fill="url(#sp-rail)"/>
+  <path d="M-10 18 Q200 46 410 18" stroke="#c9a36a" stroke-width="1.5" opacity=".5" fill="none"/>
+  <!-- the betting line -->
+  <path d="M30 150 Q200 116 370 150" stroke="#f3d27a" stroke-width="1.4" stroke-dasharray="2 5" opacity=".45" fill="none"/>
+
+  <!-- chips, left: a tall pink stack and a shorter blue one -->
+  <g filter="url(#sp-shadow)">
+    <g color="#e0457b">
+      <use href="#sp-chip" x="70" y="132"/><use href="#sp-chip" x="70" y="124"/><use href="#sp-chip" x="70" y="116"/>
+      <use href="#sp-chip" x="70" y="108"/><use href="#sp-chip" x="71" y="100"/><use href="#sp-chip" x="70" y="92"/>
+    </g>
+    <g color="#2f7fe0">
+      <use href="#sp-chip" x="112" y="140"/><use href="#sp-chip" x="112" y="132"/><use href="#sp-chip" x="113" y="124"/>
+    </g>
+  </g>
+  <!-- chips, right: black and gold, one tipped over -->
+  <g filter="url(#sp-shadow)">
+    <g color="#2b2f36">
+      <use href="#sp-chip" x="322" y="136"/><use href="#sp-chip" x="322" y="128"/><use href="#sp-chip" x="321" y="120"/><use href="#sp-chip" x="322" y="112"/>
+    </g>
+    <g color="#e9a520">
+      <use href="#sp-chip" x="282" y="146"/><use href="#sp-chip" x="282" y="138"/>
+    </g>
+    <g color="#e0457b" transform="rotate(-12 352 150)"><use href="#sp-chip" x="356" y="152"/></g>
+  </g>
+
+  <!-- the two aces -->
+  <g filter="url(#sp-shadow)">
+    <g transform="rotate(-11 186 98)">
+      <rect x="152" y="46" width="66" height="94" rx="7" fill="url(#sp-card)" stroke="#c9d3de" stroke-width="1"/>
+      <text x="160" y="66" font-family="Georgia,'Times New Roman',serif" font-weight="700" font-size="18" fill="#15191f">A</text>
+      <path d="M166 70 q5 6 5 9 a3.3 3.3 0 0 1 -5 2.6 l1 3 h-2 l1-3 a3.3 3.3 0 0 1 -5 -2.6 q0-3 5-9 z" fill="#15191f"/>
+      <path d="M185 76 q16 17 16 26 a9.5 9.5 0 0 1 -14 8 l3 10 h-10 l3 -10 a9.5 9.5 0 0 1 -14 -8 q0 -9 16 -26 z" fill="#15191f"/>
+    </g>
+    <g transform="rotate(9 228 96)">
+      <rect x="196" y="44" width="66" height="94" rx="7" fill="url(#sp-card)" stroke="#c9d3de" stroke-width="1"/>
+      <text x="204" y="64" font-family="Georgia,'Times New Roman',serif" font-weight="700" font-size="18" fill="#d33a2c">A</text>
+      <path d="M210 82 l-5 -5.5 a3 3 0 0 1 5 -3.4 a3 3 0 0 1 5 3.4 z" fill="#d33a2c"/>
+      <path d="M229 116 l-15 -16 a8.6 8.6 0 0 1 15 -9.6 a8.6 8.6 0 0 1 15 9.6 z" fill="#d33a2c"/>
+    </g>
+  </g>
+</svg>
