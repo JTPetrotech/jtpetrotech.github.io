@@ -48,6 +48,22 @@ let who = null;
 let profile = null;
 const listeners = new Set();
 
+// A sign-in, sign-up or sign-out still under way. Firebase reports the new
+// user a moment before it has written them to the browser's storage, so
+// anything that reloads the page on a change of user (sync.js does) has to
+// wait for this first, or the reload undoes the change.
+let busy = Promise.resolve();
+function track(job) {
+  busy = busy.then(() => job, () => job).catch(() => {});
+  return job;
+}
+
+/** Resolves once no sign-in, sign-up or sign-out is under way. */
+export async function idle() {
+  let seen;
+  do { seen = busy; await seen; } while (seen !== busy);
+}
+
 let saveTimer = null;
 let pending = null;
 
@@ -162,7 +178,8 @@ function refuseUnreachable() {
 
 // ------------------------------------------------------------------ signing
 
-export async function signUp(rawName, password) {
+export const signUp = (rawName, password) => track(signUpNow(rawName, password));
+async function signUpNow(rawName, password) {
   await start();
   refuseUnreachable();
   const name = cleanName(rawName);
@@ -188,7 +205,8 @@ export async function signUp(rawName, password) {
   }
 }
 
-export async function signIn(rawName, password) {
+export const signIn = (rawName, password) => track(signInNow(rawName, password));
+async function signInNow(rawName, password) {
   await start();
   refuseUnreachable();
   const name = cleanName(rawName);
@@ -211,7 +229,8 @@ export async function signIn(rawName, password) {
   }
 }
 
-export async function signOut() {
+export const signOut = () => track(signOutNow());
+async function signOutNow() {
   flush();
   if (state === 'cloud' && auth) {
     await mods.authMod.signOut(auth).catch(() => {});

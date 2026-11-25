@@ -69,11 +69,13 @@ function apply(mine, keys) {
 const same = (a, b) => JSON.stringify(sorted(a)) === JSON.stringify(sorted(b));
 function sorted(o) { const r = {}; for (const k of Object.keys(o || {}).sort()) r[k] = o[k]; return r; }
 
-function reloadOnce(game) {
-  // Two reloads inside ten seconds means something is fighting the save; stop
-  // rather than spin. The game plays on with whatever it has.
+function reloadOnce(game, chosen) {
+  // Two reloads inside ten seconds as a page opens means something is
+  // fighting the save; stop rather than spin. The game plays on with whatever
+  // it has. A reload because somebody just signed in or out here is what they
+  // asked for, so it always happens.
   const last = Number(sessionStorage.getItem(RELOAD(game)) || 0);
-  if (Date.now() - last < 10000) return;
+  if (!chosen && Date.now() - last < 10000) return;
   try { sessionStorage.setItem(RELOAD(game), String(Date.now())); } catch {}
   location.reload();
 }
@@ -99,13 +101,22 @@ function toast(text) {
 export async function syncGame(game, keys) {
   if (!ls || !game || !keys || !keys.length) return;
   const mine = matcher(keys);
+  // The sign-in button inside the game, put up straight away rather than after
+  // the account code has loaded. A failure to load it costs the button, never
+  // the save.
+  import('./badge.js').then((b) => b.mount(game)).catch(() => {});
   await account.start();
   if (account.mode() === 'unreachable') return; // no answer about who is signed in, so touch nothing
 
   let lastSent = null;
   let who = null;
+  let opening = true; // the first answer is the page opening, not a change made here
 
   async function settle(now) {
+    // Let a sign-in or sign-out finish being written down before acting on
+    // it; reloading before then would undo it.
+    await account.idle();
+    now = account.whoami();
     who = now;
     const owner = get(OWNER(game)) || '';
     const here = snapshot(mine);
@@ -119,7 +130,7 @@ export async function syncGame(game, keys) {
       put(OWNER(game), '');
       put(GUEST(game), null);
       put(STAMP(game), null);
-      if (apply(mine, guest)) reloadOnce(game);
+      if (apply(mine, guest)) reloadOnce(game, !opening);
       return;
     }
 
@@ -131,7 +142,7 @@ export async function syncGame(game, keys) {
       put(OWNER(game), who.name);
       put(STAMP(game), String(saved.t || Date.now()));
       lastSent = saved.keys;
-      if (apply(mine, saved.keys)) { reloadOnce(game); return; }
+      if (apply(mine, saved.keys)) { reloadOnce(game, !opening); return; }
       if (owner !== who.name) toast(`Playing as ${account.display(who.name)} — progress saves to your account`);
       return;
     }
@@ -147,7 +158,7 @@ export async function syncGame(game, keys) {
         put(STAMP(game), String(Date.now()));
         account.save(game, { keys: keep, t: Date.now() });
         account.flush();
-        reloadOnce(game);
+        reloadOnce(game, !opening);
         return;
       }
     }
@@ -178,5 +189,7 @@ export async function syncGame(game, keys) {
   document.addEventListener('visibilitychange', () => { if (document.hidden) check(true); });
 
   let running = Promise.resolve();
-  account.onAccount((now) => { running = running.then(() => settle(now)).catch(() => {}); });
+  account.onAccount((now) => {
+    running = running.then(() => settle(now)).catch(() => {}).then(() => { opening = false; });
+  });
 }
