@@ -29,7 +29,7 @@
  * what to do about one you do not.
  */
 import { FIREBASE_CONFIG, isConfigured } from './config.js';
-import { addressFor, cleanName, nameProblem, passProblem, display } from './names.js';
+import { addressFor, cleanName, nameFrom, nameProblem, passProblem, display } from './names.js';
 import * as device from './local.js';
 
 export { cleanName, display, nameProblem, passProblem, isConfigured };
@@ -100,7 +100,16 @@ export function onAccount(fn) {
 
 // -------------------------------------------------------------------- start
 
-export async function start() {
+// One start, however many callers arrive while it is under way: the in-game
+// button and the save keeper both start the account as a page opens, and two
+// starts at once meant two sets of Firebase listeners answering everything twice.
+let starting = null;
+export function start() {
+  if (!starting) starting = startOnce();
+  return starting;
+}
+
+async function startOnce() {
   if (state !== 'cold') return state;
   if (!isConfigured()) {
     state = 'device';
@@ -137,7 +146,7 @@ export async function start() {
         announce();
         return;
       }
-      who = { name: cleanName(user.displayName || user.email), uid: user.uid };
+      who = { name: user.displayName ? cleanName(user.displayName) : nameFrom(user.email), uid: user.uid };
       profile = await fetchProfile(user.uid).catch(() => null);
       announce();
     });

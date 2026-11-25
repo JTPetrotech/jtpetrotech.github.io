@@ -199,7 +199,7 @@ export function mount(game) {
   function visible() {
     const PN = window.PadNav;
     let menus = known;
-    try { if (PN && typeof PN.active === 'function') menus = PN.active() !== false; } catch {}
+    try { if (menus && PN && typeof PN.active === 'function') menus = PN.active() !== false; } catch {}
     if (document.pointerLockElement) menus = false;
     root.style.display = menus ? '' : 'none';
     if (!menus && !panel.hidden) open(false);
