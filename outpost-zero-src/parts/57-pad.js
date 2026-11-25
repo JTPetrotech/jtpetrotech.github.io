@@ -35,6 +35,16 @@ const PAD_BTN = {
   nintendo: ['B', 'A', 'Y', 'X', 'L', 'R', 'ZL', 'ZR', '−', '+', 'LS', 'RS', 'D-pad up', 'D-pad down', 'D-pad left', 'D-pad right', 'Home'],
 };
 let padTypeSet = store.get('padType', 'auto');
+// how the sticks feel: speed, up-down speed, dead zone, response curve, aim assist, invert, turn boost
+const PAD_CFG_DEF = { sens: 1, vert: 1, dz: 0.14, curve: 1.8, assist: 1, invert: false, boost: true };
+let padCfg = cleanPadCfg(store.get('padCfg', null));
+function cleanPadCfg(c) {
+  c = c && typeof c === 'object' ? c : {};
+  const n = (v, lo, hi, d) => Number.isFinite(+v) ? clamp(+v, lo, hi) : d;
+  return { sens: n(c.sens, .3, 3, 1), vert: n(c.vert, .4, 1.6, 1), dz: n(c.dz, .03, .35, .14), curve: n(c.curve, 1, 3, 1.8),
+    assist: n(c.assist, 0, 1.5, 1), invert: !!c.invert, boost: c.boost !== false };
+}
+function savePadCfg() { store.set('padCfg', padCfg); }
 function padTypeOf(gp) {
   if (padTypeSet !== 'auto') return padTypeSet;
   const id = (gp && gp.id) || '';
@@ -186,8 +196,9 @@ function padFrame(now) {
     if (R > A.fire.v) A.fire = { v: R, on: R > .35, edge: R > .35 && !padPrevAct.fire };
   }
   for (const id in A) padPrevAct[id] = A[id].on;
-  const [mx, my] = padStick2(gp.axes[0] || 0, gp.axes[1] || 0);
-  const [lx, ly] = padStick2(gp.axes[S.look[0]] || 0, gp.axes[S.look[1]] || 0, 0.12);
+  const [mx, my] = padStick2(gp.axes[0] || 0, gp.axes[1] || 0, padCfg.dz);
+  let [lx, ly] = padStick2(gp.axes[S.look[0]] || 0, gp.axes[S.look[1]] || 0, padCfg.dz);
+  if (padCfg.invert) ly = -ly;
   const anyBtn = gp.buttons.some(b => b && (b.pressed || b.value > .35));
   if (anyBtn || mx || my || lx || ly) padUsing = true;
   padShowInfo(gp, A);
@@ -228,21 +239,21 @@ function padFrame(now) {
   // look: an expo curve for fine aim near the centre, a turn boost when the
   // stick is held right over, slower while aiming down the sights
   const lm = Math.hypot(lx, ly);
-  padHeldTurn = lm > 0.92 ? padHeldTurn + dt : 0;
+  padHeldTurn = lm > 0.92 && padCfg.boost ? padHeldTurn + dt : 0;
   const boost = 1 + Math.min(1, Math.max(0, padHeldTurn - 0.18) / 0.35) * 0.9;
   const aiming = mouse.r && !P.veh;
-  let rate = 3.2 * sens * (camera.fov / 75) * (aiming ? 0.55 : 1) * boost;
-  const curve = lm ? Math.pow(lm, 1.8) / lm : 0;
-  const tgt = !P.veh ? padAimTarget(aiming ? 4 : 3) : null;
-  if (tgt) rate *= aiming ? 0.5 : 0.62;          // slows over a target
+  let rate = 3.2 * padCfg.sens * (camera.fov / 75) * (aiming ? 0.55 : 1) * boost;
+  const curve = lm ? Math.pow(lm, padCfg.curve) / lm : 0, AA = padCfg.assist;
+  const tgt = !P.veh && AA > 0 ? padAimTarget(aiming ? 4 : 3) : null;
+  if (tgt) rate *= Math.max(.3, 1 - (aiming ? .5 : .38) * AA);          // slows over a target
   if (lx || ly) {
     P.yaw -= lx * curve * rate * dt;
-    P.pitch = clamp(P.pitch - ly * curve * rate * 0.8 * dt, -1.5, 1.5);
+    P.pitch = clamp(P.pitch - ly * curve * rate * 0.8 * padCfg.vert * dt, -1.5, 1.5);
     lookDX += lx * 6; lookDY += ly * 6;
   }
   if (tgt) {
-    if (padSnapT > 0 && aiming) { const k = Math.min(1, dt / 0.06) * 0.8; P.yaw += tgt.ey * k; P.pitch += tgt.ep * k; }
-    else if (lm > 0.05 || Math.hypot(mx, my) > 0.1) { const k = Math.min(1, dt * (aiming ? 4 : 2.5)) * (1 - tgt.ang / tgt.cone); P.yaw += tgt.ey * k * .5; P.pitch += tgt.ep * k * .4; }
+    if (padSnapT > 0 && aiming) { const k = Math.min(1, dt / 0.06) * 0.8 * Math.min(1, AA); P.yaw += tgt.ey * k; P.pitch += tgt.ep * k; }
+    else if (lm > 0.05 || Math.hypot(mx, my) > 0.1) { const k = Math.min(1, dt * (aiming ? 4 : 2.5)) * (1 - tgt.ang / tgt.cone) * AA; P.yaw += tgt.ey * k * .5; P.pitch += tgt.ep * k * .4; }
   }
   padSnapT = Math.max(0, padSnapT - dt);
 }

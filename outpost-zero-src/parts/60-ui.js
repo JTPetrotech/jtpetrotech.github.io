@@ -1,6 +1,6 @@
 /* Menus: main menu, loadout, join, lobby, pause, end. */
 
-const OVERLAYS = ['menu', 'joinov', 'lobby', 'loadout', 'pause', 'end', 'controls'];
+const OVERLAYS = ['menu', 'joinov', 'lobby', 'loadout', 'pause', 'end', 'controls', 'workshop'];
 function showOnly(id) { for (const o of OVERLAYS) $(o).hidden = o !== id; }
 
 /* ---------- name, settings ---------- */
@@ -117,7 +117,7 @@ $('padBindList').addEventListener('click', e => {
   } };
 });
 function openControls(from) {
-  controlsFrom = from; renderBinds(); renderPadBinds();
+  controlsFrom = from; renderBinds(); renderPadBinds(); renderSticks(); $('ctlCode').value = controlsCode(); $('ctlMsg').textContent = '';
   if (from === 'pause') $('pause').hidden = true; else showOnly(null);
   $('controls').hidden = false;
 }
@@ -231,7 +231,7 @@ function renderLoadout() {
     const s = +b.dataset.s; b.classList.toggle('on', s === loSlot);
     b.textContent = `Slot ${s + 1} · ${GUNS[loadout[s].id].name}`;
   }
-  $('loGuns').innerHTML = GUN_IDS.map(g => `<button data-g="${g}" class="${g === id ? 'on' : ''}"><b>${GUNS[g].name}</b>${GUNS[g].cls}</button>`).join('');
+  $('loGuns').innerHTML = loadoutGunIds().map(g => `<button data-g="${g}" class="${g === id ? 'on' : ''}"><b>${escHtml(GUNS[g].name)}</b>${escHtml(GUNS[g].cls)}</button>`).join('');
   $('loAtts').innerHTML = MOD_CATS.map(([cat, label]) => {
     const ch = modChoices(id, cat);
     if (ch.length <= 1) return '';
@@ -241,7 +241,7 @@ function renderLoadout() {
       ch.map(v => `<button data-cat="${cat}" data-v="${v}" class="${v === sel ? 'on' : ''}">${table[v].name}</button>`).join('')
     }</div><div class="attdesc">${table[sel].desc || ''}</div></div></div>`;
   }).join('');
-  $('loSkins').innerHTML = SKIN_IDS.map(k => `<button data-skin="${k}" class="sw${k === sl.skin ? ' on' : ''}" aria-label="${SKINS[k].name} skin"><i style="background:${skinSwatch(k)}"></i>${SKINS[k].name}</button>`).join('');
+  $('loSkins').innerHTML = SKIN_IDS.map(k => `<button data-skin="${k}" class="sw${k === sl.skin ? ' on' : ''}" aria-label="${escHtml(SKINS[k].name)} skin"><i style="background:${skinSwatch(k)}"></i>${escHtml(SKINS[k].name)}</button>`).join('');
   const s = gunStats(id, sl.att), base = gunStats(id, defaultAtt(id));
   $('loName').textContent = GUNS[id].name;
   $('loSub').textContent = `${GUNS[id].cls} · ${SKINS[sl.skin || 'factory'].name} · ${modSummary(sl)}`;
@@ -349,3 +349,234 @@ loadMap(G.map);
 if (/[?&]ozdebug\b/.test(location.search)) window.__oz = { world, P, G, MP, HS, bots: () => bots, crates: () => crates, groundGuns: () => groundGuns, guns: () => guns, fire: () => fire(), mpSend, interact, loadMap, FPS };
 requestAnimationFrame(frame);
 addEventListener('keydown', e => { if (bindCapture || e.code !== 'Escape' || $('controls').hidden) return; if (padCapture) { padCapture = null; renderPadBinds(); } else closeControls(); });
+
+
+/* ---------- controller stick settings ---------- */
+const CURVES = [[1, 'Linear', 'Even all the way'], [1.8, 'Standard', 'Fine aim near the middle'], [2.6, 'Precise', 'Very fine near the middle']];
+const ASSISTS = [[0, 'Off', 'None at all'], [0.5, 'Low', 'A light touch'], [1, 'Normal', 'Like most console shooters'], [1.4, 'High', 'Strong pull']];
+function renderSticks() {
+  $('psSens').value = padCfg.sens; $('psVert').value = padCfg.vert; $('psDz').value = padCfg.dz;
+  $('psInvert').checked = padCfg.invert; $('psBoost').checked = padCfg.boost;
+  $('psCurve').innerHTML = chipRow(CURVES, CURVES.reduce((a, c) => Math.abs(c[0] - padCfg.curve) < Math.abs(a[0] - padCfg.curve) ? c : a)[0], 'curve');
+  $('psAssist').innerHTML = chipRow(ASSISTS, ASSISTS.reduce((a, c) => Math.abs(c[0] - padCfg.assist) < Math.abs(a[0] - padCfg.assist) ? c : a)[0], 'assist');
+}
+const stickChanged = () => { savePadCfg(); $('ctlCode').value = controlsCode(); };
+for (const [id, k] of [['psSens', 'sens'], ['psVert', 'vert'], ['psDz', 'dz']]) $(id).addEventListener('input', e => { padCfg[k] = +e.target.value; stickChanged(); });
+$('psInvert').addEventListener('change', e => { padCfg.invert = e.target.checked; stickChanged(); });
+$('psBoost').addEventListener('change', e => { padCfg.boost = e.target.checked; stickChanged(); });
+$('psCurve').addEventListener('click', e => { const b = e.target.closest('button[data-curve]'); if (!b) return; padCfg.curve = +b.dataset.curve; stickChanged(); renderSticks(); });
+$('psAssist').addEventListener('click', e => { const b = e.target.closest('button[data-assist]'); if (!b) return; padCfg.assist = +b.dataset.assist; stickChanged(); renderSticks(); });
+
+/* ---------- sharing a whole controls setup ---------- */
+// only what differs from the defaults goes in the code, so it stays short
+function controlsCode() {
+  const k = {}, p = {}, c = {};
+  for (const [id, , , def] of ACTIONS) if (binds[id].join() !== def.join()) k[id] = binds[id];
+  for (const [id, , def] of PAD_ACTS) if (padBinds[id].join() !== def.join()) p[id] = padBinds[id];
+  for (const key in PAD_CFG_DEF) if (padCfg[key] !== PAD_CFG_DEF[key]) c[key] = padCfg[key];
+  return shareEncode('C', { k, p, t: padTypeSet, c, s: sens });
+}
+function applyControls(o) {
+  const keyOk = c => typeof c === 'string' && /^[A-Za-z0-9]{0,24}$/.test(c), padOk = c => typeof c === 'string' && /^(|b\d{1,2}|a\d{1,2}[+-])$/.test(c);
+  for (const [id, , , def] of ACTIONS) { const v = o.k && o.k[id]; binds[id] = Array.isArray(v) && v.length === 2 && v.every(keyOk) ? v.slice() : def.slice(); }
+  saveBinds();
+  for (const [id, , def] of PAD_ACTS) { const v = o.p && o.p[id]; padBinds[id] = Array.isArray(v) && v.length === 2 && v.every(padOk) ? v.slice() : def.slice(); }
+  savePadBinds();
+  if (PAD_TYPES.some(t => t[0] === o.t)) { padTypeSet = o.t; store.set('padType', padTypeSet); }
+  padCfg = cleanPadCfg(o.c); savePadCfg();
+  if (Number.isFinite(+o.s)) { sens = clamp(+o.s, 0.3, 2.5); store.set('sens', sens); $('sens').value = sens; }
+}
+async function copyText(input, msgEl, ok) {
+  input.select(); let done = false;
+  try { await navigator.clipboard.writeText(input.value); done = true; } catch (e) { try { done = document.execCommand('copy'); } catch (e2) {} }
+  msgEl.textContent = done ? ok : 'Select the code and copy it (Ctrl+C).';
+}
+$('ctlCopy').addEventListener('click', () => { $('ctlCode').value = controlsCode(); copyText($('ctlCode'), $('ctlMsg'), 'Copied. Send it to a friend.'); });
+$('ctlApply').addEventListener('click', () => {
+  const d = shareDecode($('ctlPaste').value);
+  if (!d) { $('ctlMsg').textContent = 'That code did not work. Check it was copied whole.'; return; }
+  if (d.tag !== 'C') { $('ctlMsg').textContent = 'That is a gun or skin code: add it in the Workshop.'; return; }
+  applyControls(d.obj); renderBinds(); renderPadBinds(); renderSticks(); renderLegend(); renderBreath();
+  $('ctlCode').value = controlsCode(); $('ctlPaste').value = '';
+  $('ctlMsg').textContent = 'Done: you are using their controls now. Reset buttons put yours back to the defaults.';
+});
+
+/* ---------- the workshop ---------- */
+let wsTab = 'gun', wsFrom = 'menu', wsEdit = { gun: null, skin: null }, wsGun = cleanGunSpec({}), wsSkin = cleanSkinSpec({});
+let wsR = null, wsScene, wsCam, wsModel = null, wsSpin = 0, wsLoop = false;
+const WS_GUN = '__ws_gun', WS_SKIN = '__ws_skin';
+function statHtml(s, base) {
+  const bb = statBars(base);
+  return statBars(s).map(([label, v, txt], i) => {
+    const b = bb[i][1], cv = Math.round(v * 100), bv = Math.round(b * 100);
+    let bars;
+    if (Math.abs(cv - bv) < 1) bars = `<i style="width:${cv}%"></i>`;
+    else if (cv > bv) bars = `<i style="width:${bv}%"></i><i class="up" style="left:${bv}%;width:${cv - bv}%"></i>`;
+    else bars = `<i style="width:${cv}%"></i><i class="dn" style="left:${cv}%;width:${bv - cv}%"></i>`;
+    return `<div class="sb"><span>${label}</span><span class="tr">${bars}</span><span>${txt}</span></div>`;
+  }).join('');
+}
+function wsInitView() {
+  if (wsR) return;
+  try {
+    wsR = new THREE.WebGLRenderer({ canvas: $('wsView'), antialias: true, alpha: true });
+    wsR.setPixelRatio(Math.min(2, devicePixelRatio || 1));
+    wsR.toneMapping = renderer.toneMapping; wsR.toneMappingExposure = renderer.toneMappingExposure; wsR.outputEncoding = renderer.outputEncoding;
+  } catch (e) { wsR = null; return; }
+  wsScene = new THREE.Scene();
+  wsScene.add(new THREE.HemisphereLight(0xffffff, 0x40464c, 0.9));
+  const l = new THREE.DirectionalLight(0xffffff, 0.9); l.position.set(2, 3, 2); wsScene.add(l);
+  const l2 = new THREE.DirectionalLight(0xbfd4ff, 0.35); l2.position.set(-2, 1, -2); wsScene.add(l2);
+  wsCam = new THREE.PerspectiveCamera(30, 720 / 380, 0.1, 20);
+}
+function wsShowModel() {
+  if (!wsR) return;
+  if (wsModel) { disposeGunModel(wsModel); wsModel = null; }
+  let id, skin;
+  if (wsTab === 'gun') { GUNS[WS_GUN] = buildCustomGun(wsGun); id = WS_GUN; skin = 'factory'; }
+  else { setSkin(WS_SKIN, wsSkin); id = loadout[0] ? loadout[0].id : 'vk7'; skin = WS_SKIN; }
+  wsModel = makeGunModel(id, defaultAtt(id), skin, true);
+  const g = wsModel.group; wsScene.add(g); g.scale.setScalar(1); g.position.set(0, 0, 0); g.rotation.set(0, 0, 0);
+  const box = new THREE.Box3().setFromObject(g), c = box.getCenter(new THREE.Vector3()), size = box.getSize(new THREE.Vector3());
+  g.position.sub(c);
+  const pivot = new THREE.Group(); pivot.add(g); wsScene.add(pivot); wsModel.pivot = pivot;
+  const L = Math.max(size.z, size.y * 2, .3);
+  wsCam.position.set(0, L * 0.12, L * 1.45); wsCam.lookAt(0, 0, 0);
+}
+function wsFrame() {
+  if (!wsLoop) return;
+  requestAnimationFrame(wsFrame);
+  if (!wsR || !wsModel) return;
+  const cv = $('wsView'), w = cv.clientWidth, h = cv.clientHeight;
+  if (w && h && (cv.width !== Math.round(w * wsR.getPixelRatio()) || cv.height !== Math.round(h * wsR.getPixelRatio()))) { wsR.setSize(w, h, false); wsCam.aspect = w / h; wsCam.updateProjectionMatrix(); }
+  wsSpin += 0.006;
+  wsModel.pivot.rotation.y = Math.PI / 2 + Math.sin(wsSpin) * 0.6;
+  wsModel.pivot.rotation.x = Math.sin(wsSpin * 0.7) * 0.08;
+  wsR.render(wsScene, wsCam);
+}
+const wsChips = (label, items, sel, attr) => `<div class="attrow"><div class="k">${label}</div><div><div class="chips">${items.map(([v, n]) => `<button data-${attr}="${v}" class="${String(v) === String(sel) ? 'on' : ''}">${n}</button>`).join('')}</div></div></div>`;
+function wsRender() {
+  for (const b of $('wsTabs').children) b.classList.toggle('on', b.dataset.t === wsTab);
+  let h = '';
+  if (wsTab === 'gun') {
+    const s = wsGun, P = partsFor(s.f);
+    h += `<div class="attrow"><div class="k">NAME</div><div><input class="txt" id="wsNameIn" maxlength="16" value="${escHtml(s.n)}" aria-label="Gun name" autocomplete="off" spellcheck="false"></div></div>`;
+    h += wsChips('FRAME', Object.entries(GUN_FRAMES).map(([k, f]) => [k, f.name]), s.f, 'wf');
+    h += wsChips('FIRE MODE', P.modes.map(k => [k, GUN_MODES[k]]), s.x, 'wx');
+    if (P.barrels.length > 1) h += wsChips('BARREL', P.barrels.map(k => [k, GUN_BARRELS[k]]), s.b, 'wb');
+    if (P.stocks.length > 1) h += wsChips('STOCK', P.stocks.map(k => [k, GUN_STOCKS[k]]), s.s, 'ws');
+    h += wsChips('MAGAZINE', P.mags.map(k => [k, GUN_MAGS[k]]), s.m, 'wm');
+    h += `<div class="attrow"><div class="k">COLOUR</div><div><div class="chips">${GUN_COLOURS.map((c, i) => `<button data-wc="${i}" class="${i === s.c ? 'on' : ''}" aria-label="Colour ${i + 1}"><span class="swc" style="background:#${c.toString(16).padStart(6, '0')}"></span></button>`).join('')}</div></div></div>`;
+    const notes = [PART_NOTES[s.b], s.s === 'heavy' ? PART_NOTES.heavyStock : s.s === 'none' ? PART_NOTES.none : '', PART_NOTES[s.m]].filter(n => n && n !== 'Balanced');
+    h += `<div class="attdesc">${notes.join(' · ') || 'Every part changes the numbers: try them and watch the bars.'}</div>`;
+  } else {
+    const s = wsSkin;
+    h += `<div class="attrow"><div class="k">NAME</div><div><input class="txt" id="wsNameIn" maxlength="16" value="${escHtml(s.n)}" aria-label="Skin name" autocomplete="off" spellcheck="false"></div></div>`;
+    h += wsChips('PATTERN', Object.entries(SKIN_KINDS), s.k, 'wk');
+    h += `<div class="attrow"><div class="k">COLOURS</div><div class="colors">${['Base', 'Second', 'Third', 'Fourth'].map((n, i) => `<label>${n} <input type="color" data-wcol="${i}" value="${s.c[i]}"></label>`).join('')}</div></div>`;
+    h += `<div class="row" style="margin-top:8px"><button class="alt" id="wsShuffle">Shuffle the pattern</button></div>`;
+    h += `<div class="attdesc">Shown on the gun in your first loadout slot. Save it, then pick it in the loadout like any skin.</div>`;
+  }
+  $('wsEditor').innerHTML = h;
+  wsRenderSide();
+  wsRenderList();
+}
+function wsRenderSide() {
+  const editing = wsEdit[wsTab];
+  if (wsTab === 'gun') {
+    GUNS[WS_GUN] = buildCustomGun(wsGun);
+    const F = GUN_FRAMES[wsGun.f], s = gunStats(WS_GUN, defaultAtt(WS_GUN)), base = gunStats(F.t, defaultAtt(F.t));
+    $('wsName').textContent = wsGun.n;
+    $('wsSub').textContent = `${F.name} · ${GUN_MODES[wsGun.x]} · bars compare it with the stock ${GUNS[F.t].name}`;
+    $('wsStats').innerHTML = statHtml(s, base);
+  } else {
+    $('wsName').textContent = wsSkin.n; $('wsSub').textContent = `${SKIN_KINDS[wsSkin.k]} skin`; $('wsStats').innerHTML = '';
+  }
+  $('wsSave').textContent = editing ? 'Save changes' : wsTab === 'gun' ? 'Save gun' : 'Save skin';
+  wsShowModel();
+}
+function wsRenderList() {
+  const items = wsTab === 'gun' ? customGuns.map(g => ({ id: g.id, n: g.spec.n, sub: `${GUN_FRAMES[g.spec.f].name} · ${GUN_MODES[g.spec.x]}` }))
+    : customSkins.map(s => ({ id: s.id, n: s.spec.n, sub: SKIN_KINDS[s.spec.k], sw: skinSwatch(s.id) }));
+  $('wsList').innerHTML = items.length ? items.map(it => `<div class="it${wsEdit[wsTab] === it.id ? ' on' : ''}">${it.sw ? `<span class="swc" style="background:${it.sw}"></span>` : ''}<b>${escHtml(it.n)}</b><span>${escHtml(it.sub)}</span>
+    <button class="alt" data-wedit="${it.id}">Edit</button><button class="alt" data-wcopy="${it.id}">Copy code</button><button class="alt" data-wdel="${it.id}">Delete</button></div>`).join('')
+    : `<div class="note">Nothing saved yet. Design one above and press Save; it then shows up in your loadout.</div>`;
+}
+function openWorkshop(from, tab) {
+  wsFrom = from; if (tab) wsTab = tab;
+  showOnly('workshop'); $('wsMsg').textContent = '';
+  wsInitView(); wsRender();
+  if (!wsLoop) { wsLoop = true; requestAnimationFrame(wsFrame); }
+}
+function closeWorkshop() {
+  wsLoop = false; if (wsModel) { disposeGunModel(wsModel); wsModel = null; }
+  if (wsFrom === 'loadout') { showOnly('loadout'); renderLoadout(); } else showOnly('menu');
+}
+$('openWorkshop').addEventListener('click', () => openWorkshop('menu'));
+$('loDesign').addEventListener('click', () => { if (loReturn === 'bench') { toast('USE THE WORKSHOP FROM THE MAIN MENU'); return; } openWorkshop('loadout'); });
+$('wsDone').addEventListener('click', closeWorkshop);
+$('wsTabs').addEventListener('click', e => { const b = e.target.closest('button[data-t]'); if (!b) return; wsTab = b.dataset.t; $('wsMsg').textContent = ''; wsRender(); });
+$('wsEditor').addEventListener('input', e => {
+  if (e.target.id === 'wsNameIn') { const s = wsTab === 'gun' ? wsGun : wsSkin; s.n = e.target.value.slice(0, 16); $('wsName').textContent = s.n; return; }
+  if (e.target.dataset.wcol != null) { wsSkin.c[+e.target.dataset.wcol] = e.target.value; wsShowModel(); }
+});
+$('wsEditor').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const d = b.dataset;
+  if (b.id === 'wsShuffle') { wsSkin.s = (Math.random() * 65535) | 0; wsShowModel(); return; }
+  if (d.wf) { wsGun = cleanGunSpec(Object.assign({}, wsGun, { f: d.wf, x: null })); }
+  else if (d.wx) wsGun.x = d.wx; else if (d.wb) wsGun.b = d.wb; else if (d.ws) wsGun.s = d.ws; else if (d.wm) wsGun.m = d.wm;
+  else if (d.wc != null) wsGun.c = +d.wc; else if (d.wk) wsSkin.k = d.wk; else return;
+  wsRender();
+});
+$('wsSave').addEventListener('click', () => {
+  if (wsTab === 'gun') {
+    wsGun = cleanGunSpec(wsGun);
+    const id = saveCustomGun(wsEdit.gun, wsGun);
+    if (!id) { $('wsMsg').textContent = 'You can keep 12 guns. Delete one to make room.'; return; }
+    wsEdit.gun = id; $('wsMsg').textContent = `Saved. Find "${wsGun.n}" at the end of the gun list in your loadout.`;
+  } else {
+    wsSkin = cleanSkinSpec(wsSkin);
+    const id = saveCustomSkin(wsEdit.skin, wsSkin);
+    if (!id) { $('wsMsg').textContent = 'You can keep 12 skins. Delete one to make room.'; return; }
+    wsEdit.skin = id; $('wsMsg').textContent = `Saved. "${wsSkin.n}" is now in the skin list in your loadout.`;
+  }
+  wsRender();
+});
+$('wsNew').addEventListener('click', () => {
+  wsEdit[wsTab] = null;
+  if (wsTab === 'gun') wsGun = cleanGunSpec({ f: wsGun.f }); else wsSkin = cleanSkinSpec({ k: wsSkin.k, c: wsSkin.c });
+  $('wsMsg').textContent = ''; wsRender();
+});
+$('wsList').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const d = b.dataset;
+  if (d.wedit) {
+    if (wsTab === 'gun') { const g = customGuns.find(x => x.id === d.wedit); if (g) { wsGun = cleanGunSpec(g.spec); wsEdit.gun = g.id; } }
+    else { const s = customSkins.find(x => x.id === d.wedit); if (s) { wsSkin = cleanSkinSpec(s.spec); wsEdit.skin = s.id; } }
+    $('wsMsg').textContent = ''; wsRender();
+  } else if (d.wcopy) {
+    const code = wsTab === 'gun' ? gunCode(d.wcopy) : skinCode(d.wcopy);
+    $('wsPaste').value = code; copyText($('wsPaste'), $('wsMsg'), 'Code copied. Send it to a friend; they paste it here, under "Add a friend\'s design".');
+  } else if (d.wdel) {
+    if (wsTab === 'gun') deleteCustomGun(d.wdel); else deleteCustomSkin(d.wdel);
+    if (wsEdit[wsTab] === d.wdel) wsEdit[wsTab] = null;
+    $('wsMsg').textContent = 'Deleted.'; wsRender();
+  }
+});
+$('wsImport').addEventListener('click', () => {
+  const d = shareDecode($('wsPaste').value);
+  if (!d) { $('wsMsg').textContent = 'That code did not work. Check it was copied whole.'; return; }
+  if (d.tag === 'C') { $('wsMsg').textContent = 'That is a controls code: paste it in Controls instead.'; return; }
+  if (d.tag === 'G') {
+    const spec = cleanGunSpec(d.obj), id = saveCustomGun(null, spec);
+    if (!id) { $('wsMsg').textContent = 'You can keep 12 guns. Delete one to make room.'; return; }
+    wsTab = 'gun'; wsGun = spec; wsEdit.gun = id; $('wsMsg').textContent = `Added "${spec.n}". It is in your loadout now.`;
+  } else {
+    const spec = cleanSkinSpec(d.obj), id = saveCustomSkin(null, spec);
+    if (!id) { $('wsMsg').textContent = 'You can keep 12 skins. Delete one to make room.'; return; }
+    wsTab = 'skin'; wsSkin = spec; wsEdit.skin = id; $('wsMsg').textContent = `Added "${spec.n}". It is in your skin list now.`;
+  }
+  $('wsPaste').value = ''; wsRender();
+});
+addEventListener('keydown', e => { if (e.code === 'Escape' && !$('workshop').hidden && !typing(e.target)) closeWorkshop(); });

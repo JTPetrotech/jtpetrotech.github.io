@@ -244,7 +244,7 @@ function skinCanvasFor(id) {
   const S = SKINS[id];
   if (S.kind === 'carbon') return (skinCanvas[id] = carbonCanvas(false));
   const n = 256, c = document.createElement('canvas'); c.width = c.height = n;
-  const x = c.getContext('2d'), r = mulberry(hashStr(id));
+  const x = c.getContext('2d'), r = mulberry(hashStr(id + (S.seed || '')));
   const wrap = (fn) => { for (const ox of [-n, 0, n]) for (const oy of [-n, 0, n]) fn(ox, oy); };
   const blob = (px, py, rx, ry, a) => wrap((ox, oy) => { x.beginPath(); x.ellipse(px + ox, py + oy, rx, ry, a, 0, 6.29); x.fill(); });
   const S2 = n / 128; // the old patterns were drawn at 128
