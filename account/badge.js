@@ -17,8 +17,14 @@
 import * as account from './arcade.js';
 
 // Where the pill sits, per game, when the default corner is taken.
+// `only`, when given, is a further condition for showing the button at all.
 const PLACE = {
-  poker: { top: 14, right: 66 }, // left of the settings gear
+  poker: {
+    top: 14, right: 66, // left of the lobby's settings gear
+    // Only in the lobby. At the table that corner is the toolbar (Collection
+    // and the rest), and signing in reloads the page, which would end a hand.
+    only: () => { const l = document.getElementById('lobby'); return Boolean(l && !l.hidden && getComputedStyle(l).display !== 'none'); },
+  },
 };
 
 const CSS = `
@@ -201,6 +207,7 @@ export function mount(game) {
     let menus = known;
     try { if (menus && PN && typeof PN.active === 'function') menus = PN.active() !== false; } catch {}
     if (document.pointerLockElement) menus = false;
+    try { if (menus && place.only && !place.only()) menus = false; } catch {}
     root.style.display = menus ? '' : 'none';
     if (!menus && !panel.hidden) open(false);
   }
