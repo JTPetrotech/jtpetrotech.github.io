@@ -101,13 +101,21 @@ function renderBinds(waitId, waitSlot) {
   const warn = [['fire', 'Mouse0', 'left'], ['aim', 'Mouse2', 'right']].filter(([a]) => !binds[a].some(Boolean))
     .map(([a, m, side]) => bindRev[m] === m ? `${ACT[a][2]} has no key, so ${side} click still does it.` : `${ACT[a][2]} has no key. Give it one, or you cannot ${a === 'fire' ? 'shoot' : 'aim'}.`);
   $('bindMsg').textContent = [msg, ...warn].filter(Boolean).join(' ');
+  if ($('ctlCode')) $('ctlCode').value = controlsCode(); // the share code always matches what is set
 }
 function renderPadBinds(waitId, waitSlot) {
-  $('padTypeChips').innerHTML = chipRow(PAD_TYPES.map(([k, n]) => [k, n, k === 'auto' ? (padSeen ? 'Looks like ' + PAD_TYPES.find(t => t[0] === padTypeOf(padSeen) || false)[1] : 'From the controller') : 'Its button names']), padTypeSet, 'padtype');
+  syncPadBinds();
+  const seen = padSeen && padTypeSet === 'auto' ? PAD_TYPES.find(t => t[0] === padTypeOf(padSeen))[1] : null;
+  const SUB = { auto: seen ? 'Using ' + seen : 'Picks from your controller', xbox: 'A jumps · bottom button', ps: '✕ jumps · bottom button', nintendo: 'A jumps · right button' };
+  $('padTypeChips').innerHTML = chipRow(PAD_TYPES.map(([k, n]) => [k, k === 'auto' ? 'Auto' : n + ' mode', SUB[k]]), padTypeSet, 'padtype');
+  const name = PAD_TYPES.find(t => t[0] === padBindsType)[1];
+  $('padLayoutNote').textContent = `${PAD_LAYOUT_NOTE[padBindsType]} Each mode keeps its own buttons, so changes here only change the ${name} layout.`;
+  $('padReset').textContent = `Reset ${name} layout`;
   $('padBindList').innerHTML = PAD_ACTS.map(([id, label]) => `<div class="lbl">${escHtml(label)}</div>` + [0, 1].map(i => {
     const c = padBinds[id][i], wait = id === waitId && i === waitSlot;
     return `<button class="bk${c ? '' : ' empty'}${wait ? ' wait' : ''}${i ? ' alt2' : ''}" data-pbind="${id}" data-slot="${i}" aria-label="${escHtml(label)}, ${i ? 'second' : 'first'} button: ${escHtml(padCodeName(c))}">${wait ? 'Press a button…' : escHtml(padCodeName(c))}</button>`;
   }).join('')).join('');
+  $('ctlCode').value = controlsCode();
 }
 $('padTypeChips').addEventListener('click', e => { const b = e.target.closest('button[data-padtype]'); if (!b) return; padTypeSet = b.dataset.padtype; store.set('padType', padTypeSet); renderPadBinds(); renderLegend(); });
 $('padReset').addEventListener('click', () => { resetPadBinds(); renderPadBinds(); });
@@ -378,7 +386,8 @@ $('psAssist').addEventListener('click', e => { const b = e.target.closest('butto
 function controlsCode() {
   const k = {}, p = {}, c = {};
   for (const [id, , , def] of ACTIONS) if (binds[id].join() !== def.join()) k[id] = binds[id];
-  for (const [id, , def] of PAD_ACTS) if (padBinds[id].join() !== def.join()) p[id] = padBinds[id];
+  // each controller layout that was changed, keyed by its kind of pad
+  for (const t of PAD_LAYOUT_TYPES) { const d = {}; for (const [id] of PAD_ACTS) if (padBindSets[t][id].join() !== padDefault(t, id).join()) d[id] = padBindSets[t][id]; if (Object.keys(d).length) p[t] = d; }
   for (const key in PAD_CFG_DEF) if (padCfg[key] !== PAD_CFG_DEF[key]) c[key] = padCfg[key];
   return shareEncode('C', { k, p, t: padTypeSet, c, s: sens });
 }
@@ -386,9 +395,14 @@ function applyControls(o) {
   const keyOk = c => typeof c === 'string' && /^[A-Za-z0-9]{0,24}$/.test(c), padOk = c => typeof c === 'string' && /^(|b\d{1,2}|a\d{1,2}[+-])$/.test(c);
   for (const [id, , , def] of ACTIONS) { const v = o.k && o.k[id]; binds[id] = Array.isArray(v) && v.length === 2 && v.every(keyOk) ? v.slice() : def.slice(); }
   saveBinds();
-  for (const [id, , def] of PAD_ACTS) { const v = o.p && o.p[id]; padBinds[id] = Array.isArray(v) && v.length === 2 && v.every(padOk) ? v.slice() : def.slice(); }
-  savePadBinds();
   if (PAD_TYPES.some(t => t[0] === o.t)) { padTypeSet = o.t; store.set('padType', padTypeSet); }
+  // newer codes hold a layout per kind of pad; older ones one layout, which goes to the pad in use
+  const p = o.p && typeof o.p === 'object' ? o.p : {}, perType = PAD_LAYOUT_TYPES.some(t => p[t] && typeof p[t] === 'object');
+  for (const t of PAD_LAYOUT_TYPES) {
+    const src = perType ? p[t] : (t === padTypeOf(padSeen) ? p : null);
+    for (const [id] of PAD_ACTS) { const v = src && src[id]; padBindSets[t][id] = Array.isArray(v) && v.length === 2 && v.every(padOk) ? v.slice() : padDefault(t, id); }
+  }
+  savePadBinds(); syncPadBinds();
   padCfg = cleanPadCfg(o.c); savePadCfg();
   if (Number.isFinite(+o.s)) { sens = clamp(+o.s, 0.3, 2.5); store.set('sens', sens); $('sens').value = sens; }
 }

@@ -72,18 +72,37 @@ const PAD_ACTS = [
   ['steady', 'Steady scope', ['b11', '']],
   ['board', 'Scoreboard', ['b8', '']],
 ];
-let padBinds = {};
-function loadPadBinds() {
-  const s = store.get('padBinds', null) || {};
-  padBinds = {};
-  for (const [id, , def] of PAD_ACTS) padBinds[id] = Array.isArray(s[id]) && s[id].length === 2 ? s[id].map(c => typeof c === 'string' ? c : '') : def.slice();
+// Each kind of pad keeps its own layout. Xbox and PlayStation start the same;
+// Nintendo swaps A and B the way Nintendo games do: A (the right button) jumps,
+// B (the bottom one) crouches. The game uses the layout of whichever kind it
+// sees - or the one picked on the Controls screen.
+const PAD_LAYOUT_TYPES = ['xbox', 'ps', 'nintendo'];
+const PAD_LAYOUT_DIFF = { nintendo: { jump: ['b1', ''], crouch: ['b0', ''] } };
+const PAD_LAYOUT_NOTE = {
+  xbox: 'Xbox layout: A jumps, B crouches, X reloads and uses, Y switches guns.',
+  ps: 'PlayStation layout: ✕ jumps, ○ crouches, □ reloads and uses, △ switches guns.',
+  nintendo: 'Nintendo layout: A jumps, B crouches, Y reloads and uses, X switches guns.',
+};
+function padDefault(type, id) { const d = PAD_LAYOUT_DIFF[type] && PAD_LAYOUT_DIFF[type][id]; return (d || PAD_ACTS.find(a => a[0] === id)[2]).slice(); }
+let padBindSets = {}, padBinds = {}, padBindsType = 'xbox';
+function cleanPadSet(type, s) {
+  const out = {};
+  for (const [id] of PAD_ACTS) out[id] = s && Array.isArray(s[id]) && s[id].length === 2 ? s[id].map(c => typeof c === 'string' ? c : '') : padDefault(type, id);
+  return out;
 }
-function savePadBinds() { store.set('padBinds', padBinds); }
+function loadPadBinds() {
+  const sets = store.get('padBindSets', null), old = store.get('padBinds', null);
+  for (const t of PAD_LAYOUT_TYPES) padBindSets[t] = cleanPadSet(t, sets ? sets[t] : (t !== 'nintendo' ? old : null));
+  syncPadBinds();
+}
+// point padBinds at the layout for the pad in use
+function syncPadBinds() { padBindsType = padTypeOf(padSeen); padBinds = padBindSets[padBindsType] || padBindSets.xbox; }
+function savePadBinds() { store.set('padBindSets', padBindSets); }
 function setPadBind(id, slot, code) {
   if (code) for (const a in padBinds) for (let i = 0; i < 2; i++) if (padBinds[a][i] === code) padBinds[a][i] = '';
   padBinds[id][slot] = code; savePadBinds();
 }
-function resetPadBinds() { for (const [id, , def] of PAD_ACTS) padBinds[id] = def.slice(); savePadBinds(); }
+function resetPadBinds() { for (const [id] of PAD_ACTS) padBinds[id] = padDefault(padBindsType, id); savePadBinds(); }
 function padLabel(id) { const b = padBinds[id] || []; return padCodeName(b[0] || b[1]); }
 loadPadBinds();
 
@@ -179,6 +198,7 @@ function padFrame(now) {
   const dt = Math.min(0.05, (now - (padLast || now)) / 1000); padLast = now;
   const gp = padFind();
   padSeen = gp;
+  if (gp && padTypeOf(gp) !== padBindsType) syncPadBinds(); // a different kind of pad: use its layout
   if (!gp) { if (padHeld.size || padMouseL || padMouseR || padDrive.on) padRelease(); return; }
   if (!padRest[gp.id]) padRest[gp.id] = gp.axes.slice();
   if (padCapture) { padCaptureStep(gp); return; }
