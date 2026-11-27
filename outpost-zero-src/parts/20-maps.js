@@ -516,6 +516,118 @@ function buildBayou(B) {
   for (let i = 0; i < 26; i++) { const x = B.R(-105, 0), z = B.R(-105, 105), l = B.R(3, 6), al = B.r() < 0.5; B.mirror(x, z, l / 2 + 0.6, (px, pz) => B.wall(px, pz, l, al, B.R(0.9, 1.2), [0x5a4a36, 0x6b5a44])); }
   B.mountains(world.half + 110, world.half + 160, [0x56664c, 0x627258], 25, 50);
 }
+/* ---------- Railyard: four tracks of boxcars, a station, a water tower ---------- */
+const RAIL_Z = [-15, -5, 5, 15];
+function buildRailyard(B) {
+  const H = world.half;
+  for (const tz of RAIL_Z) for (const o of [-0.72, 0.72]) B.inst.win.push({ p: [0, heightAt(0, tz) + 0.1, tz + o], s: [H * 2, 0.14, 0.12], c: 0x7b7d80 });
+  // boxcars sitting on the tracks, wheels and all
+  const CARS = [0x8a3b2a, 0x6b4a2e, 0x3d5a6b, 0x5a6b3d, 0x7a7f86, 0xa8672e];
+  for (let i = 0, n = 0; i < 300 && n < 22; i++) {
+    const x = B.R(-H + 12, -4), tz = B.pick(RAIL_Z), col = B.pick(CARS), L = B.r() < 0.5 ? 12 : 9;
+    if (B.mirror(x, tz, L / 2 + 0.8, (px, pz) => {
+      const g = heightAt(px, pz), car = B.box(px, pz, L, 2.8, 2.9, col, { base: g + 0.95 });
+      B.inst.win.push({ p: [px, g + 2.2, pz + 1.43], s: [2.4, 2.2, 0.06], c: 0x2a2d31 }); B.inst.win.push({ p: [px, g + 2.2, pz - 1.43], s: [2.4, 2.2, 0.06], c: 0x2a2d31 });
+      for (const a of [-L / 2 + 1.4, L / 2 - 1.4]) for (const b of [-0.72, 0.72]) B.inst.wheel.push({ p: [px + a, g + 0.45, pz + b], s: [0.45, 0.2, 0.45], c: 0x1c1e20, r: [Math.PI / 2, 0, 0] });
+      return car; })) n++;
+  }
+  // the station and its platform
+  B.mirror(0, 30, 11, (px, pz) => { B.building(px, pz, 22, 8, 5.2, true, [0xa38a66, 0x9a7f5e], true); });
+  B.mirror(0, 21.5, 1, (px, pz) => B.box(px, pz, 44, 4, 0, 0x9aa0a4, { top: heightAt(px, pz) + 0.9 }));
+  // water tower: legs and a tank up top
+  B.mirror(-64, 32, 4, (px, pz) => { const g = heightAt(px, pz);
+    for (const a of [-1.6, 1.6]) for (const b of [-1.6, 1.6]) B.box(px + a, pz + b, 0.4, 0.4, 9, 0x5a4a3a);
+    B.inst.cyl.push({ p: [px, g + 11, pz], s: [3, 4, 3], c: 0x7a5a3c }); B.inst.cyl.push({ p: [px, g + 13.2, pz], s: [3.1, 0.4, 3.1], c: 0x4a3a2c }); });
+  for (const [x, z] of [[-84, 38], [-40, 44], [-96, 62]]) B.mirror(x, z, 12, (px, pz) => B.building(px, pz, 20, 12, 7, false, CONCRETE, true));
+  B.mirror(-24, 40, 6, (px, pz) => B.crane(px, pz));
+  for (const x of [-90, -50, -10]) B.mirror(x, 0.1, 0.4, (px, pz) => B.mast(px, pz + (px < 0 ? 10 : -10), 7, 0x3b4045));
+  for (let i = 0, n = 0; i < 200 && n < 10; i++) { const x = B.R(-100, -10), z = B.R(50, 100), al = B.r() < 0.6, col = B.pick(BOXCOL);
+    if (B.mirror(x, z, 5, (px, pz) => B.container(px, pz, al, 6, B.r() < 0.5 ? 1 : 2, col))) n++; }
+  for (let i = 0; i < 40; i++) { const x = B.R(-104, -4), z = B.R(-104, 104); if (Math.abs(z) < 19) continue; const l = B.R(2.5, 5), al = B.r() < 0.5;
+    B.mirror(x, z, l / 2 + 0.6, (px, pz) => B.wall(px, pz, l, al, 1.1, [0x9b9585, 0xd9b84a])); }
+  for (let i = 0; i < 40; i++) { const x = B.R(-104, -4), z = B.R(-104, 104), st = B.r() < 0.35; B.mirror(x, z, 1, (px, pz) => B.crate(px, pz, st)); }
+  for (let t = -100; t <= 100; t += 25) B.mirror(t, 19.5, 0.4, (px, pz) => B.lamp(px, pz));
+  for (let i = 0, n = 0; i < 400 && n < 40; i++) { const x = B.R(-108, 0), z = B.R(70, 108); if (B.mirror(x, z, 1.6, (px, pz) => B.tree(px, pz, 'leaf'))) n++; }
+  B.mountains(world.half + 100, world.half + 150, [0x7a7f73, 0x8b8a7e], 25, 55);
+}
+
+/* ---------- Stronghold: a castle on a hill, a village around it ---------- */
+function strongholdH(x, z) {
+  const r = Math.hypot(x, z);
+  return 7.5 * (1 - sstep(22, 62, r)) + 1.1 * Math.cos(x * 0.05) * Math.cos(z * 0.045) + 0.5 * Math.sin(x * 0.09 + z * 0.07);
+}
+function buildStronghold(B) {
+  const STONE = [0x9a958a, 0x8b867c, 0xa8a397];
+  const S = 19, top = heightAt(0, 0);
+  // curtain walls with a gate in the middle of each side
+  for (const sgn of [-1, 1]) for (const half of [-1, 1]) {
+    B.box(half * (S / 2 + 3.5), sgn * S, S - 7, 1.6, 4.2, B.pick(STONE), { base: top - 1.2 });
+    B.box(sgn * S, half * (S / 2 + 3.5), 1.6, S - 7, 4.2, B.pick(STONE), { base: top - 1.2 });
+  }
+  for (const a of [-1, 1]) for (const b of [-1, 1]) B.building(a * S, b * S, 5.5, 5.5, 10, true, STONE, true); // corner towers
+  B.building(0, 0, 10, 10, 11, true, STONE, true); // the keep
+  for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2 + 0.2; B.crate(Math.cos(a) * 9, Math.sin(a) * 9, i % 3 === 0); }
+  // the village below
+  for (const [x, z, w, d, h] of [[-48, -60, 8, 7, 3.4], [-70, -30, 9, 7, 3.6], [-30, -82, 8, 6, 3.2], [-86, -64, 8, 8, 3.6], [-62, -92, 7, 7, 3.2], [-20, -58, 7, 6, 3.4], [-92, -18, 8, 7, 3.4]])
+    B.mirror(x, z, Math.max(w, d) / 2 + 1.5, (px, pz) => B.cabin(px, pz, w, d, h, [0xc9b89a, 0xb8a684, 0xd6c6a6]));
+  B.mirror(-60, -10, 3, (px, pz) => B.building(px, pz, 3.6, 3.6, 8.5, true, STONE, true));
+  for (let i = 0; i < 50; i++) { const x = B.R(-105, 105), z = B.R(-105, -30), l = B.R(3, 8), al = B.r() < 0.5;
+    B.mirror(x, z, l / 2 + 0.6, (px, pz) => B.wall(px, pz, l, al, B.R(0.9, 1.3), [0x8f8a7c, 0x7d796d])); }
+  for (let i = 0; i < 30; i++) { const x = B.R(-105, 105), z = B.R(-105, -28), st = B.r() < 0.3; B.mirror(x, z, 1, (px, pz) => B.crate(px, pz, st, [0x6e5a3e, 0x8a6a43])); }
+  for (let i = 0; i < 40; i++) { const x = B.R(-105, 105), z = B.R(-105, -30), s = B.R(0.8, 2.4); B.mirror(x, z, s + 0.5, (px, pz) => B.rock(px, pz, s)); }
+  for (let i = 0, n = 0; i < 800 && n < 120; i++) { const x = B.R(-108, 108), z = B.R(-108, -34); if (B.mirror(x, z, 1.6, (px, pz) => B.tree(px, pz, B.r() < 0.5 ? 'pine' : 'leaf'))) n++; }
+  B.mountains(world.half + 90, world.half + 150, [0x6c7b62, 0x7f8a75, 0x8a8f86], 35, 75);
+}
+
+/* ---------- Suburbs: streets of houses with yards, a school, a park ---------- */
+const suburbStreet = v => Math.abs(v - Math.round(v / 40) * 40);
+function buildSuburbs(B) {
+  const HOUSE = [0xd8cfc0, 0xc9b8a0, 0xb8c4c8, 0xd6c6a6, 0xc4a98a, 0xa8b89a, 0xe0d6c4];
+  B.fence(3, 0x8d9095);
+  // houses on the lots between streets, each with a low yard fence
+  for (const bx of [-100, -60, -20]) for (const bz of [-100, -60, -20, 20, 60, 100]) for (const [ox, oz] of [[-9, -9], [9, -9], [-9, 9], [9, 9]]) {
+    if (B.r() < 0.18) continue;
+    const x = bx + ox + B.R(-1.5, 1.5), z = bz + oz + B.R(-1.5, 1.5), w = B.R(7, 9.5), d = B.R(6.5, 8.5), h = B.R(3, 3.6), col = B.pick(HOUSE);
+    B.mirror(x, z, Math.max(w, d) / 2 + 0.6, (px, pz) => B.cabin(px, pz, w, d, h, [col]));
+    const al = B.r() < 0.5;
+    B.mirror(x + (al ? 0 : (ox > 0 ? 6 : -6)), z + (al ? (oz > 0 ? 6 : -6) : 0), 4, (px, pz) => B.wall(px, pz, B.R(5, 8), al, 0.9, [0xe8e4d8, 0x8a6a4a]));
+  }
+  // a school and a park
+  B.mirror(-40, 0, 12, (px, pz) => B.building(px, pz, 22, 14, 6.5, true, [0xb5452f, 0xa8492f], true));
+  for (let i = 0, n = 0; i < 300 && n < 30; i++) { const x = B.R(-16, 16), z = B.R(-16, 16); if (Math.hypot(x, z) < 4) continue; if (B.mirror(x, z, 1.6, (px, pz) => B.tree(px, pz, 'leaf'))) n++; }
+  B.rock(0, 0, 1.4, [0x9aa0a4]);
+  for (let i = 0, n = 0; i < 400 && n < 30; i++) {
+    const onX = B.r() < 0.5, s = B.pick([-80, -40, 0, 40, 80]), t = B.R(-115, 0), lane = B.pick([-2.2, 2.2]);
+    const x = onX ? t : s + lane, z = onX ? s + lane : t;
+    if (B.mirror(x, z, 2.6, (px, pz) => B.car(px, pz, onX, B.pick(CARS)))) n++;
+  }
+  for (const s of [-80, -40, 0, 40, 80]) for (let t = -110; t <= 0; t += 30) B.mirror(s + 4.2, t, 0.4, (px, pz) => B.lamp(px, pz));
+  for (let i = 0; i < 26; i++) { const x = B.R(-115, 0), z = B.R(-115, 115), st = B.r() < 0.3; B.mirror(x, z, 1, (px, pz) => B.crate(px, pz, st, [0x8a6a43, 0x6e7a8a])); }
+  B.mountains(world.half + 100, world.half + 160, [0x7f8c6d, 0x8a8f86], 25, 50);
+}
+
+/* ---------- Polar Station: research modules, radar masts, a frozen lake ---------- */
+function polarH(x, z) {
+  const r = Math.hypot(x, z);
+  return r < 26 ? -0.6 : 1.6 * Math.sin(x * 0.04) * Math.cos(z * 0.035) * sstep(26, 50, r) + 0.6 * Math.cos(x * 0.1 + z * 0.06) * sstep(26, 50, r) - 0.6 * (1 - sstep(26, 34, r));
+}
+function buildPolar(B) {
+  const WHITE = [0xdfe4e8, 0xcfd6dc, 0xe8ecef], ORANGE = 0xd9662b;
+  // modules: long low huts on legs, linked to fuel tanks
+  for (const [x, z, w, d] of [[-46, -12, 14, 6], [-58, 20, 12, 6], [-34, 40, 10, 7], [-74, -34, 12, 6], [-40, -50, 9, 9], [-86, 8, 8, 8]])
+    B.mirror(x, z, Math.max(w, d) / 2 + 1.2, (px, pz) => { const b = B.building(px, pz, w, d, 3.4, true, B.r() < 0.4 ? [ORANGE] : WHITE, true); if (b) B.inst.win.push({ p: [px, b.maxY + 0.1, pz], s: [w * 0.9, 0.2, d * 0.9], c: 0x8d9aa4 }); });
+  for (const [x, z, r, h] of [[-62, -4, 3, 4], [-30, 18, 2.5, 3.5], [-50, 48, 3.5, 4.5]]) B.mirror(x, z, r + 1, (px, pz) => B.tank(px, pz, r, h, B.r() < 0.5 ? 0xe8ecef : ORANGE));
+  for (const [x, z] of [[-70, 44], [-26, -36], [-92, -50]]) B.mirror(x, z, 3, (px, pz) => B.mast(px, pz, 20, 0xc0392b));
+  for (let i = 0, n = 0; i < 200 && n < 8; i++) { const x = B.R(-95, -30), z = B.R(-95, 95), al = B.r() < 0.5;
+    if (B.mirror(x, z, 5, (px, pz) => B.container(px, pz, al, 6, 1, B.pick([ORANGE, 0x2f6fa8, 0xa8b3b8])))) n++; }
+  for (let i = 0; i < 40; i++) { const x = B.R(-98, -2), z = B.R(-98, 98); if (Math.hypot(x, z) < 30) continue; const l = B.R(3, 6), al = B.r() < 0.5, h = B.R(1.0, 1.4);
+    B.mirror(x, z, l / 2 + 0.6, (px, pz) => B.wall(px, pz, l, al, h, [0xc8d0d6, 0xb0b9c0])); }
+  for (let i = 0; i < 26; i++) { const x = B.R(-98, -2), z = B.R(-98, 98), st = B.r() < 0.3; if (Math.hypot(x, z) < 28) continue; B.mirror(x, z, 1, (px, pz) => B.crate(px, pz, st, [0x5f6b45, 0xd9662b])); }
+  for (let i = 0; i < 40; i++) { const x = B.R(-100, 0), z = B.R(-100, 100), s = B.R(0.8, 2.6); if (Math.hypot(x, z) < 30) continue; B.mirror(x, z, s + 0.5, (px, pz) => B.rock(px, pz, s, [0x80888e, 0x6f777d])); }
+  for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2, x = Math.cos(a) * 14, z = Math.sin(a) * 14; if (isClear(x, z, 1)) B.crate(x, z, false, [0x5f6b45]); }
+  for (let i = 0, n = 0; i < 500 && n < 60; i++) { const x = B.R(-100, 0), z = B.R(-100, 100); if (Math.hypot(x, z) < 36) continue; if (B.mirror(x, z, 1.6, (px, pz) => B.tree(px, pz, 'snow'))) n++; }
+  B.mountains(world.half + 50, world.half + 90, [0xdfe6ec, 0xc5ced5, 0xa9b3bb], 40, 80);
+}
 const streetDist = v => Math.abs(v - Math.round(v / 30) * 30);
 const MAPS = {
   valley: { name: 'Valley', blurb: 'Huge open valley, town in the middle', half: 200, axis: 'x', sky: 0xb4ccd8, fog: [80, 340], hemi: [0xdcefff, 0x5d6b3c, 0.78], sun: [0xfff0d4, 0.9],
@@ -573,6 +685,22 @@ const MAPS = {
     h: bayouH,
     ground: (c, h, n) => h < 0.05 ? c.setHSL(0.15, 0.3, 0.26 + n * 0.04) : c.setHSL(0.2 + n * 0.05, 0.38, 0.27 + n * 0.05),
     build: buildBayou, water: 0.12, grass: 5000 },
+  railyard: { name: 'Railyard', blurb: 'Four tracks of boxcars, a station and a water tower', half: 110, axis: 'x', sky: 0xbcc4c6, fog: [60, 270], hemi: [0xe6ecee, 0x5d5a50, 0.8], sun: [0xfff0d8, 0.92],
+    h: (x, z) => Math.abs(z) < 20 ? 0 : 0.5 * Math.sin(x * 0.04) * Math.cos(z * 0.05) * sstep(20, 30, Math.abs(z)),
+    ground: (c, h, n, x, z) => RAIL_Z.some(t => Math.abs(z - t) < 1.4) ? c.setHSL(0.07, 0.15, 0.3 + n * 0.04) : Math.abs(z) < 20 ? c.setHSL(0.08, 0.08, 0.45 + n * 0.05) : c.setHSL(0.22 + n * 0.05, 0.28, 0.36 + n * 0.05),
+    build: buildRailyard, grass: 3000, noGrass: (x, z) => Math.abs(z) < 22 },
+  stronghold: { name: 'Stronghold', blurb: 'A castle on a hill with a village below', half: 110, axis: 'z', sky: 0xb4c6d2, fog: [60, 280], hemi: [0xdfeaf2, 0x5d6b3c, 0.8], sun: [0xfff0d0, 0.92],
+    h: strongholdH,
+    ground: (c, h, n) => c.setHSL(0.23 + n * 0.05, 0.32, 0.32 + n * 0.05 + h * 0.008),
+    build: buildStronghold, grass: 5000 },
+  suburbs: { name: 'Suburbs', blurb: 'Streets of houses and yards, a school, a park', half: 120, axis: 'x', sky: 0xb8cfdc, fog: [55, 280], hemi: [0xe2f0fa, 0x5f6b4a, 0.82], sun: [0xfff2d8, 0.95],
+    h: () => 0, seg: 3.5,
+    ground: (c, h, n, x, z) => (suburbStreet(x) < 4 || suburbStreet(z) < 4) ? c.setHSL(0.6, 0.04, 0.24 + n * 0.03) : (suburbStreet(x) < 5.2 || suburbStreet(z) < 5.2) ? c.setHSL(0.1, 0.05, 0.62) : c.setHSL(0.24 + n * 0.04, 0.38, 0.38 + n * 0.05),
+    build: buildSuburbs, grass: 3000, noGrass: (x, z) => suburbStreet(x) < 5.5 || suburbStreet(z) < 5.5 },
+  polar: { name: 'Polar Station', blurb: 'Research huts and radar masts by a frozen lake', half: 100, axis: 'x', sky: 0xd4dee6, fog: [40, 230], hemi: [0xf2f7ff, 0x9aaab8, 0.88], sun: [0xf6f9ff, 0.9],
+    h: polarH,
+    ground: (c, h, n, x, z) => Math.hypot(x, z) < 27 ? c.setHSL(0.55, 0.35, 0.78 + n * 0.04) : c.setHSL(0.58, 0.16, Math.min(0.93, 0.82 + n * 0.06 + h * 0.01)),
+    build: buildPolar, snow: true },
 };
 const MAP_IDS = Object.keys(MAPS);
 

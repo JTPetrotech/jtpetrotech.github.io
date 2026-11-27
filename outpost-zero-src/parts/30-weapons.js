@@ -111,6 +111,34 @@ const GUNS = {
     recoil: 0.009, range: 55, mob: 1.15, adsTime: 0.1, reserveMags: 4, pistol: true,
     optics: ['iron', 'reddot'], optic: 'reddot', muzzles: ['none', 'sup', 'comp'], noStock: true, noBarrel: true, unders: ['none', 'laser'],
     shape: { furn: 0x3a3226 } },
+  vandal: { name: 'Vandal', cls: 'Carbine', snd: 'rifle', dmg: 24, head: 1.9, rpm: 760, auto: true, mag: 30, reload: 1.9, hip: 0.03, ads: 0.0035,
+    recoil: 0.0082, range: 165, mob: 1.06, adsTime: 0.14, reserveMags: 3,
+    optics: ['iron', 'reddot', 'holo', 'x3'], optic: 'holo', muzzles: ['none', 'sup', 'comp', 'brake'],
+    shape: { L: .36, H: .09, barrel: .2, guard: [.2, .075], stock: 'wire', mag: 'curved', furn: 0x2f3337 } },
+  phantom: { name: 'Phantom', cls: 'Silenced SMG', snd: 'smg', quiet: true, dmg: 20, head: 1.6, rpm: 820, auto: true, mag: 32, reload: 1.9, hip: 0.038, ads: 0.011,
+    recoil: 0.006, range: 75, mob: 1.08, adsTime: 0.13, reserveMags: 3,
+    optics: ['iron', 'reddot', 'holo'], optic: 'reddot', muzzles: ['none'],
+    shape: { L: .3, H: .1, barrel: .26, guard: [.24, .08], stock: 'wire', mag: 'straight', furn: 0x252a2e } },
+  scout: { name: 'Scout', cls: 'Scout rifle', snd: 'br', dmg: 50, head: 2.2, rpm: 260, auto: false, mag: 10, reload: 2.3, hip: 0.045, ads: 0.0009,
+    recoil: 0.018, range: 380, mob: 1.04, adsTime: 0.18, reserveMags: 4,
+    optics: ['iron', 'reddot', 'x3', 'x6'], optic: 'x3', muzzles: ['none', 'sup', 'brake'],
+    shape: { L: .4, H: .085, barrel: .46, guard: [.24, .072], stock: 'full', mag: 'box', furn: 0x7a5a3a } },
+  titan: { name: 'Titan .50', cls: 'Anti-materiel rifle', snd: 'sniper', dmg: 110, head: 2.2, rpm: 36, auto: false, mag: 3, reload: 3.6, hip: 0.1, ads: 0,
+    recoil: 0.06, range: 720, mob: 0.82, adsTime: 0.34, reserveMags: 4,
+    optics: ['x3', 'x6'], optic: 'x6', muzzles: ['none', 'brake'],
+    shape: { L: .52, H: .11, barrel: .72, guard: [.32, .09], stock: 'thick', mag: 'box', furn: 0x4a4f45 } },
+  havoc: { name: 'Havoc', cls: 'Drum shotgun', snd: 'sg', dmg: 9, pellets: 8, head: 1.3, rpm: 380, auto: true, mag: 20, reload: 3.8, hip: 0.08, ads: 0.06,
+    recoil: 0.026, range: 16, mob: 0.95, adsTime: 0.19, reserveMags: 3,
+    optics: ['iron', 'reddot', 'holo'], optic: 'reddot', muzzles: ['none', 'choke'],
+    shape: { L: .42, H: .105, barrel: .26, guard: [.22, .085], stock: 'thick', mag: 'drum', furn: 0x2e3a2c } },
+  storm: { name: 'Storm', cls: 'Bullpup machine gun', snd: 'lmg', dmg: 23, head: 1.7, rpm: 760, auto: true, mag: 60, reload: 3.4, hip: 0.05, ads: 0.006,
+    recoil: 0.0088, range: 220, mob: 0.92, adsTime: 0.23, reserveMags: 2,
+    optics: ['iron', 'reddot', 'holo', 'x3'], optic: 'holo', muzzles: ['none', 'sup', 'comp', 'brake'],
+    shape: { L: .4, H: .11, barrel: .3, guard: [.2, .09], stock: 'full', mag: 'drum', furn: 0x3d3f36 } },
+  marshal: { name: 'Marshal', cls: 'Heavy pistol', snd: 'rev', dmg: 47, head: 1.9, rpm: 220, auto: false, mag: 7, reload: 1.6, hip: 0.03, ads: 0.007,
+    recoil: 0.034, range: 70, mob: 1.12, adsTime: 0.11, reserveMags: 5, pistol: true,
+    optics: ['iron', 'reddot'], optic: 'iron', muzzles: ['none', 'comp'], noStock: true, noBarrel: true, unders: ['none', 'laser'],
+    shape: { furn: 0x5a4632 } },
   brute: { name: 'Brute', cls: 'Revolver', snd: 'rev', dmg: 58, head: 1.9, rpm: 140, auto: false, mag: 6, reload: 2.4, hip: 0.03, ads: 0.006,
     recoil: 0.04, range: 70, mob: 1.12, adsTime: 0.12, reserveMags: 5, pistol: true, revolver: true,
     optics: ['iron', 'reddot'], optic: 'iron', muzzles: ['none', 'comp'], noStock: true, noBarrel: true, unders: ['none', 'laser'], noMag: true,
@@ -411,7 +439,7 @@ function cleanSlot(s, fallback) {
 function gunStats(id, att) {
   const g = GUNS[id], o = OPTICS[att.optic] || OPTICS.iron;
   const m = { rv: 1, rh: 1, hip: 1, range: 1, mob: 1, adsT: 1, magM: 1, rel: 1, pel: 1, adsMove: 1 };
-  let quiet = false;
+  let quiet = !!g.quiet; // some guns are built quiet
   for (const cat of ['muzzle', 'barrel', 'under', 'mag', 'stock']) {
     const mod = MODS[cat][att[cat]]; if (!mod) continue;
     for (const k in m) if (mod[k]) m[k] *= mod[k];

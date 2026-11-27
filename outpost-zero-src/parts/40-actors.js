@@ -366,7 +366,8 @@ const BOT_GUNS = {
 const BOT_GUN_IDS = Object.keys(BOT_GUNS);
 const GUN_TO_BOT = { vk7: 'rifle', talon: 'rifle', hammer: 'dmr', ranger: 'dmr', kestrel: 'dmr', longshot: 'dmr', hornet: 'smg', wasp: 'smg', stinger: 'smg',
   bulwark: 'lmg', tempest: 'lmg', raptor: 'rifle', saber: 'smg', specter: 'dmr', warden: 'dmr', twin: 'shotgun', ripper: 'lmg', breacher: 'shotgun', mamba: 'shotgun', viper: 'smg', brute: 'dmr',
-  lancer: 'rifle', hawk: 'dmr', reaper: 'dmr', cobra: 'smg', bastion: 'lmg', sledge: 'shotgun', ace: 'smg' };
+  lancer: 'rifle', hawk: 'dmr', reaper: 'dmr', cobra: 'smg', bastion: 'lmg', sledge: 'shotgun', ace: 'smg',
+  vandal: 'rifle', phantom: 'smg', scout: 'dmr', titan: 'dmr', havoc: 'shotgun', storm: 'lmg', marshal: 'dmr' };
 const CALLSIGNS = ['Bravo', 'Kilo', 'Ghost', 'Echo', 'Atlas', 'Rook', 'Viking', 'Nomad', 'Sierra', 'Tango', 'Hawk', 'Jinx'];
 let bots = [];
 let botSerial = 1;

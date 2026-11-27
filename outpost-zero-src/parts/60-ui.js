@@ -92,10 +92,15 @@ function renderLegend() {
   ].map(h => `<div>${h}</div>`).join('');
 }
 function renderBinds(waitId, waitSlot) {
+  const msg = typeof waitId === 'string' && waitSlot === undefined && !ACT[waitId] ? waitId : '';
+  if (msg) waitId = null;
   $('bindList').innerHTML = ACTIONS.map(([id, , label]) => `<div class="lbl">${escHtml(label)}</div>` + [0, 1].map(i => {
     const c = binds[id][i], wait = id === waitId && i === waitSlot;
     return `<button class="bk${c ? '' : ' empty'}${wait ? ' wait' : ''}${i ? ' alt2' : ''}" data-bind="${id}" data-slot="${i}" aria-label="${escHtml(label)}, ${i ? 'second' : 'first'} key: ${escHtml(keyName(c))}">${wait ? 'Press a key…' : escHtml(keyName(c))}</button>`;
   }).join('')).join('');
+  const warn = [['fire', 'Mouse0', 'left'], ['aim', 'Mouse2', 'right']].filter(([a]) => !binds[a].some(Boolean))
+    .map(([a, m, side]) => bindRev[m] === m ? `${ACT[a][2]} has no key, so ${side} click still does it.` : `${ACT[a][2]} has no key. Give it one, or you cannot ${a === 'fire' ? 'shoot' : 'aim'}.`);
+  $('bindMsg').textContent = [msg, ...warn].filter(Boolean).join(' ');
 }
 function renderPadBinds(waitId, waitSlot) {
   $('padTypeChips').innerHTML = chipRow(PAD_TYPES.map(([k, n]) => [k, n, k === 'auto' ? (padSeen ? 'Looks like ' + PAD_TYPES.find(t => t[0] === padTypeOf(padSeen) || false)[1] : 'From the controller') : 'Its button names']), padTypeSet, 'padtype');
@@ -136,9 +141,10 @@ $('bindList').addEventListener('click', e => {
   renderBinds(id, slot);
   bindCapture = code => {
     bindCapture = null; if (/^Mouse/.test(code)) swallowClick = performance.now() + 400;
+    let msg = '';
     if (code === 'Backspace' || code === 'Delete') setBind(id, slot, '');
-    else if (code !== 'Escape' && code) setBind(id, slot, code);
-    renderBinds();
+    else if (code !== 'Escape' && code) { const from = setBind(id, slot, code); if (from && from !== id) msg = `${keyName(code)} moved here from ${ACT[from][2]}.`; }
+    renderBinds(msg);
     const again = $('bindList').querySelector(`button[data-bind="${id}"][data-slot="${slot}"]`); if (again) again.focus();
   };
 });

@@ -50,13 +50,19 @@ function loadBinds() {
 function rebuildBinds() {
   bindRev = {};
   for (const [id, canon] of ACTIONS) for (const c of binds[id]) if (c && !bindRev[c]) bindRev[c] = canon;
+  // a safety net: with nothing on Fire or Aim, the usual mouse button still does it, so you can never be left unable to shoot
+  if (!binds.fire.some(Boolean) && !bindRev.Mouse0) bindRev.Mouse0 = 'Mouse0';
+  if (!binds.aim.some(Boolean) && !bindRev.Mouse2) bindRev.Mouse2 = 'Mouse2';
 }
 function saveBinds() { store.set('binds', binds); rebuildBinds(); }
 // put a key on an action's slot, taking it off whatever had it before
+// returns the action the key was taken from, if it had to move
 function setBind(id, slot, code) {
-  if (code) for (const a in binds) for (let i = 0; i < 2; i++) if (binds[a][i] === code) binds[a][i] = '';
+  let from = null;
+  if (code) for (const a in binds) for (let i = 0; i < 2; i++) if (binds[a][i] === code && !(a === id && i === slot)) { binds[a][i] = ''; from = a; }
   binds[id][slot] = code;
   saveBinds();
+  return from;
 }
 function resetBinds() { for (const [id, , , def] of ACTIONS) binds[id] = def.slice(); saveBinds(); }
 const KEY_NAMES = { Space: 'Space', ShiftLeft: 'Shift', ShiftRight: 'R-Shift', ControlLeft: 'Ctrl', ControlRight: 'R-Ctrl', AltLeft: 'Alt', AltRight: 'R-Alt',
